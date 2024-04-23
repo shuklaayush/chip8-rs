@@ -2,6 +2,7 @@ mod constants;
 mod utils;
 
 use constants::*;
+use utils::*;
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
@@ -55,6 +56,21 @@ impl Chip8 {
         let start = PROGRAM_START_ADDRESS as usize;
         let end = PROGRAM_START_ADDRESS as usize + bytes.len();
         self.memory[start..end].copy_from_slice(bytes);
+    }
+
+    pub fn render(&self) {
+        clear_screen();
+
+        for row in self.display {
+            for pixel in row {
+                if pixel {
+                    print!("█");
+                } else {
+                    print!(" ");
+                }
+            }
+            println!();
+        }
     }
 }
 
