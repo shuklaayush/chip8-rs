@@ -1,3 +1,5 @@
+
+
 use rand::random;
 
 use super::constants::*;
@@ -402,18 +404,17 @@ impl Chip8 {
         audio: &mut impl AudioDriver,
     ) {
         'chip: loop {
-            match input.poll() {
-                Ok(keys) => self.keypad = keys,
-                Err(_) => break,
-            }
-
             for _ in 0..TICKS_PER_FRAME {
+                match input.poll() {
+                    Ok(keys) => self.keypad = keys,
+                    Err(_) => break 'chip,
+                }
+
                 self.tick();
             }
             self.tick_timers(audio);
 
             display.draw(&self.frame_buffer);
-            // println!("{CLEAR_STR}{:?}", self.keypad);
         }
     }
 }
