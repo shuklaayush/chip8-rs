@@ -1,45 +1,30 @@
-use crossterm::{
-    cursor::{Hide, Show},
-    execute,
-};
-use std::io::{stdout, Write};
+use ratatui::{backend::Backend, widgets::Paragraph, Terminal};
 
-use crate::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use crate::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub trait DisplayDriver {
     fn fps(&self) -> u64;
     fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);
 }
 
-#[derive(Default)]
-pub struct TerminalDisplay {
+pub struct TerminalDisplay<B: Backend> {
+    terminal: Terminal<B>,
     fps: u64,
-    prev_frame: String,
 }
 
-impl TerminalDisplay {
-    pub fn new(fps: u64) -> Self {
-        execute!(stdout(), Hide).expect("Failed to hide cursor");
-        Self {
-            fps,
-            prev_frame: Default::default(),
-        }
+impl<B: Backend> TerminalDisplay<B> {
+    pub fn new(terminal: Terminal<B>, fps: u64) -> Self {
+        Self { terminal, fps }
     }
 }
 
-impl Drop for TerminalDisplay {
-    fn drop(&mut self) {
-        execute!(stdout(), Show).expect("Failed to show cursor");
-    }
-}
-
-impl DisplayDriver for TerminalDisplay {
+impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
     fn fps(&self) -> u64 {
         self.fps
     }
 
     fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]) {
-        let frame = frame_buffer
+        let frame_str = frame_buffer
             .iter()
             .map(|row| {
                 row.iter()
@@ -49,12 +34,10 @@ impl DisplayDriver for TerminalDisplay {
             .collect::<Vec<String>>()
             .join("\r\n");
 
-        if frame != self.prev_frame {
-            let mut stdout = stdout();
-            write!(stdout, "{CLEAR_STR}{frame}").expect("Failed to write to stdout");
-            stdout.flush().expect("Failed to flush to stdout");
-
-            self.prev_frame = frame;
-        }
+        self.terminal
+            .draw(|frame| {
+                frame.render_widget(Paragraph::new(frame_str), frame.size());
+            })
+            .expect("Failed to draw");
     }
 }

@@ -1,12 +1,5 @@
-use crossterm::{
-    event::{
-        poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags,
-        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
-    },
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode},
-};
-use std::{io::stdout, time::Duration};
+use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use std::time::Duration;
 
 use crate::constants::{KEYMAP_HEX, NUM_KEYS};
 
@@ -24,27 +17,6 @@ pub trait InputDriver {
 #[derive(Default)]
 pub struct TerminalKeyboardInput {
     keys: [bool; NUM_KEYS],
-}
-
-impl TerminalKeyboardInput {
-    pub fn new() -> Self {
-        enable_raw_mode().expect("Failed to enable raw mode");
-        execute!(
-            stdout(),
-            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_EVENT_TYPES)
-        )
-        .expect("Failed to enable kitty protocol");
-        Self {
-            keys: Default::default(),
-        }
-    }
-}
-
-impl Drop for TerminalKeyboardInput {
-    fn drop(&mut self) {
-        execute!(stdout(), PopKeyboardEnhancementFlags).expect("Failed to disable kitty protocol");
-        disable_raw_mode().expect("Failed to disable raw mode");
-    }
 }
 
 impl InputDriver for TerminalKeyboardInput {

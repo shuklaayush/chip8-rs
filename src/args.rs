@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub struct CmdArgs {
     #[arg(required = true, value_parser)]
     pub rom: PathBuf,
-    #[arg(default_value_t = 480)]
+    #[arg(default_value_t = 560)]
     pub clk_freq: u64,
     #[arg(default_value_t = 60)]
     pub fps: u64,
