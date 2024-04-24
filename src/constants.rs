@@ -35,3 +35,5 @@ pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
 ];
 
 pub const TICKS_PER_FRAME: usize = 10;
+
+pub const CLEAR_STR: &str = "\x1B[2J\x1B[1;1H";

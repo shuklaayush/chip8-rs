@@ -1,9 +1,7 @@
-use super::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
-
-const CLEAR_STR: &str = "\x1B[2J\x1B[1;1H";
+use super::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub trait DisplayDriver {
-    fn render(&mut self, screen: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);
+    fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);
 }
 
 #[derive(Default)]
@@ -12,8 +10,8 @@ pub struct TerminalDisplay {
 }
 
 impl DisplayDriver for TerminalDisplay {
-    fn render(&mut self, screen: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]) {
-        let frame = screen
+    fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]) {
+        let frame = frame_buffer
             .iter()
             .map(|row| {
                 row.iter()

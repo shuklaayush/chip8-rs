@@ -1,8 +1,7 @@
 use rand::random;
 
-use crate::display::DisplayDriver;
-
 use super::constants::*;
+use crate::{display::DisplayDriver, input::InputDriver};
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
@@ -14,7 +13,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     keypad: [bool; NUM_KEYS],
-    screen: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    frame_buffer: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
 }
 
 impl Default for Chip8 {
@@ -29,7 +28,7 @@ impl Default for Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             keypad: [false; NUM_KEYS],
-            screen: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+            frame_buffer: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
         }
     }
 }
@@ -65,20 +64,21 @@ impl Chip8 {
     }
 
     fn execute(&mut self, op: u16) {
+        // println!("0x{:X}", op);
+
         let nibbles = (
             (op & 0xF000) >> 12_u8,
             (op & 0x0F00) >> 8_u8,
             (op & 0x00F0) >> 4_u8,
             (op & 0x000F) as u8,
         );
-        // println!("0x{:X}", op);
 
         match nibbles {
             // CLS
             // 0x00E0
             (0x0, 0x0, 0xE, 0x0) => {
                 // Clear screen
-                self.screen = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                self.frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -270,8 +270,8 @@ impl Chip8 {
                     for xs in 0..8 {
                         let x = (x0 + xs) as usize % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        flipped |= pixel & self.screen[y][x];
-                        self.screen[y][x] ^= pixel;
+                        flipped |= pixel & self.frame_buffer[y][x];
+                        self.frame_buffer[y][x] ^= pixel;
                     }
                 }
                 self.registers[FLAG_REGISTER] = flipped as u8;
@@ -401,18 +401,19 @@ impl Chip8 {
         }
     }
 
-    pub fn keypress(&mut self, key: usize, pressed: bool) {
-        self.keypad[key] = pressed;
-    }
-
-    pub fn run(&mut self, display: &mut impl DisplayDriver) {
+    pub fn run(&mut self, display: &mut impl DisplayDriver, input: &mut impl InputDriver) {
         'chip: loop {
+            match input.poll() {
+                Ok(keys) => self.keypad = keys,
+                Err(_) => break,
+            }
+
             for _ in 0..TICKS_PER_FRAME {
                 self.tick();
             }
             self.tick_timers();
 
-            display.render(&self.screen);
+            display.draw(&self.frame_buffer);
         }
     }
 }

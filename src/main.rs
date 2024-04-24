@@ -1,11 +1,13 @@
 mod constants;
 mod core;
 mod display;
+mod input;
 
 use core::Chip8;
 use std::{env, fs};
 
 use display::TerminalDisplay;
+use input::KeyboardInput;
 
 fn main() {
     let args: Vec<_> = env::args().collect();
@@ -17,8 +19,9 @@ fn main() {
     let rom = fs::read(path).expect("Unable to read {path}");
 
     let mut display = TerminalDisplay::default();
+    let mut input = KeyboardInput::new();
 
     let mut chip8 = Chip8::new();
     chip8.load(rom.as_slice());
-    chip8.run(&mut display);
+    chip8.run(&mut display, &mut input);
 }
