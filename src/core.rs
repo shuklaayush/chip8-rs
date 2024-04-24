@@ -1,9 +1,8 @@
+use rand::random;
 use std::{
     thread::sleep,
     time::{Duration, SystemTime},
 };
-
-use rand::random;
 
 use crate::{
     constants::{
@@ -71,8 +70,6 @@ impl Chip8 {
     }
 
     fn execute(&mut self, op: u16) {
-        // println!("0x{:X}", op);
-
         let nibbles = (
             (op & 0xF000) >> 12_u8,
             (op & 0x0F00) >> 8_u8,

@@ -2,9 +2,7 @@ use crossterm::{
     cursor::{Hide, Show},
     execute,
 };
-use std::{
-    io::{stdout, Write},
-};
+use std::io::{stdout, Write};
 
 use crate::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 

@@ -1,22 +1,21 @@
+mod args;
 mod constants;
 mod core;
 mod drivers;
 
+use args::CmdArgs;
+use clap::Parser;
 use constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 use core::Chip8;
 use crossterm::terminal;
-use std::{env, fs};
+use std::fs;
 
 use crate::drivers::{
     audio::TerminalAudio, display::TerminalDisplay, input::TerminalKeyboardInput,
 };
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
-    if args.len() != 2 {
-        println!("Usage: cargo run path/to/rom");
-        return;
-    }
+    let args = CmdArgs::parse();
 
     // Check terminal size
     let (width, height) = terminal::size().expect("Failed to get terminal size");
@@ -31,14 +30,13 @@ fn main() {
         return;
     }
 
-    let path = args[1].as_str();
-    let rom = fs::read(path).expect("Unable to read {path}");
+    let rom = fs::read(args.rom).expect("Unable to read {path}");
 
-    let mut display = TerminalDisplay::new(60);
+    let mut display = TerminalDisplay::new(args.fps);
     let mut input = TerminalKeyboardInput::new();
     let mut audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
     chip8.load(rom.as_slice());
-    chip8.run(480, &mut display, &mut input, &mut audio);
+    chip8.run(args.clk_freq, &mut display, &mut input, &mut audio);
 }
