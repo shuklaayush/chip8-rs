@@ -40,4 +40,6 @@ pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
+pub const TIMER_FREQ: u64 = 60; // 60Hz
+
 pub const CLEAR_STR: &str = "\x1B[2J\x1B[1;1H";

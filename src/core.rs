@@ -9,6 +9,7 @@ use crate::{
     constants::{
         DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET, FONTSET_START_ADDRESS, FONT_SIZE,
         MEMORY_SIZE, NUM_KEYS, NUM_REGISTERS, OPCODE_SIZE, PROGRAM_START_ADDRESS, STACK_DEPTH,
+        TIMER_FREQ,
     },
     drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver},
 };
@@ -414,19 +415,24 @@ impl Chip8 {
         audio: &mut impl AudioDriver,
     ) {
         let ticks_per_frame = clk_freq / display.fps();
+        let ticks_per_timer = clk_freq / TIMER_FREQ;
         let clk_interval = Duration::from_millis(1000 / clk_freq);
 
         let mut clk = 0;
-        'chip: loop {
+        'cpu: loop {
             let clk_start = SystemTime::now();
+
             // TODO: async
             match input.poll() {
                 Ok(keys) => self.keypad = keys,
-                Err(_) => break 'chip,
+                Err(_) => break 'cpu,
             }
+            // CPU tick
             self.tick();
-            self.tick_timers(audio);
-
+            // TODO: async
+            if clk % ticks_per_timer == 0 {
+                self.tick_timers(audio);
+            }
             // TODO: async
             if clk % ticks_per_frame == 0 {
                 display.draw(&self.frame_buffer);
