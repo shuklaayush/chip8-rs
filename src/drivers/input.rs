@@ -14,16 +14,14 @@ const KEYMAP: [char; NUM_KEYS] = [
 ];
 
 pub trait InputDriver {
-    fn poll(&mut self) -> Result<[bool; NUM_KEYS], Chip8Error>;
+    fn poll(&mut self, keypad: &mut [bool; NUM_KEYS]) -> Result<(), Chip8Error>;
 }
 
 #[derive(Default)]
-pub struct TerminalKeyboardInput {
-    keys: [bool; NUM_KEYS],
-}
+pub struct TerminalKeyboardInput {}
 
 impl InputDriver for TerminalKeyboardInput {
-    fn poll(&mut self) -> Result<[bool; NUM_KEYS], Chip8Error> {
+    fn poll(&mut self, keypad: &mut [bool; NUM_KEYS]) -> Result<(), Chip8Error> {
         if poll(Duration::from_micros(1)).map_err(|e| Chip8Error::KeypadError(e.to_string()))? {
             let event = read().map_err(|e| Chip8Error::KeypadError(e.to_string()))?;
             if let Event::Key(KeyEvent {
@@ -40,13 +38,13 @@ impl InputDriver for TerminalKeyboardInput {
                     (KeyCode::Esc, _) => return Err(Chip8Error::Interrupt),
                     (KeyCode::Char(c), _) => {
                         if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
-                            self.keys[KEYMAP_HEX[idx]] = kind == KeyEventKind::Press;
+                            keypad[KEYMAP_HEX[idx]] = kind == KeyEventKind::Press;
                         }
                     }
                     _ => (),
                 }
             }
         }
-        Ok(self.keys)
+        Ok(())
     }
 }

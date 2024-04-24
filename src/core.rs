@@ -436,8 +436,7 @@ impl Chip8 {
 
             if elapsed >= clk_interval {
                 // TODO: async
-                let keys = input.poll()?;
-                self.keypad = keys;
+                input.poll(&mut self.keypad)?;
 
                 // CPU tick
                 self.tick()?;
@@ -446,8 +445,8 @@ impl Chip8 {
                     self.tick_timers(audio)?;
                 }
                 // TODO: async
-                let freq = Some(1.0 / elapsed.as_secs_f64());
-                display.draw(&self.frame_buffer, freq)?;
+                let maybe_freq = Some(1.0 / elapsed.as_secs_f64());
+                display.draw(&self.frame_buffer, maybe_freq)?;
 
                 clk += 1;
                 prev_time = curr_time;
