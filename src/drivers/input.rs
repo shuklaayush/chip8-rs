@@ -1,9 +1,8 @@
-use std::time::Duration;
-
 use crossterm::{
     event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+use std::time::Duration;
 
 use crate::constants::NUM_KEYS;
 
@@ -17,12 +16,6 @@ pub trait InputDriver {
 
 #[derive(Default)]
 pub struct KeyboardInput {}
-
-impl KeyboardInput {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl InputDriver for KeyboardInput {
     fn poll(&mut self) -> Result<[bool; NUM_KEYS], ()> {

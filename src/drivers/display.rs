@@ -1,6 +1,6 @@
 use std::io::{stdout, Write};
 
-use super::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use crate::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub trait DisplayDriver {
     fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);

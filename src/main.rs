@@ -1,15 +1,11 @@
-mod audio;
 mod constants;
 mod core;
-mod display;
-mod input;
+mod drivers;
 
 use core::Chip8;
 use std::{env, fs};
 
-use audio::TerminalAudio;
-use display::TerminalDisplay;
-use input::KeyboardInput;
+use crate::drivers::{audio::TerminalAudio, display::TerminalDisplay, input::KeyboardInput};
 
 fn main() {
     let args: Vec<_> = env::args().collect();

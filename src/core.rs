@@ -1,7 +1,7 @@
 use rand::random;
 
 use super::constants::*;
-use crate::{audio::AudioDriver, display::DisplayDriver, input::InputDriver};
+use crate::drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver};
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
@@ -45,10 +45,6 @@ impl Chip8 {
         chip.memory[start..end].copy_from_slice(FONTSET.as_slice());
 
         chip
-    }
-
-    pub fn reset(&mut self) {
-        *self = Self::new()
     }
 
     pub fn load(&mut self, bytes: &[u8]) {
