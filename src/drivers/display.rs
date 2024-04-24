@@ -1,7 +1,7 @@
 use ratatui::{
     backend::Backend,
     layout::Rect,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Paragraph},
     Terminal,
 };
 
@@ -47,10 +47,15 @@ impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
                     .collect::<String>()
             })
             .collect::<Vec<String>>()
-            .join("\r\n");
+            .join("\n");
 
-        let block = Block::new().borders(Borders::ALL);
-        let area = Rect::new(0, 0, 2 * DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16);
+        let block = Block::bordered();
+        let area = Rect::new(
+            0,
+            0,
+            2 * DISPLAY_WIDTH as u16 + 2,
+            DISPLAY_HEIGHT as u16 + 2,
+        );
         self.terminal
             .draw(|frame| {
                 frame.render_widget(Paragraph::new(frame_str).block(block), area);
