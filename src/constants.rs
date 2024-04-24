@@ -3,14 +3,16 @@ pub const MEMORY_SIZE: usize = 4096;
 pub const STACK_DEPTH: usize = 16;
 pub const OPCODE_SIZE: u16 = 2;
 
+pub const FLAG_REGISTER: usize = 0xF;
+
+pub const FONTSET_START_ADDRESS: u16 = 0x0;
+pub const PROGRAM_START_ADDRESS: u16 = 0x200;
+
 pub const NUM_KEYS: usize = 16;
 
 pub const DISPLAY_WIDTH: usize = 64;
 pub const DISPLAY_HEIGHT: usize = 32;
 
-pub const PROGRAM_START_ADDRESS: u16 = 0x200;
-
-pub const FONTSET_START_ADDRESS: u16 = 0x0;
 pub const FONT_SIZE: usize = 5;
 const NUM_FONTS: usize = 16;
 pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
@@ -31,7 +33,5 @@ pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
-
-pub const FLAG_REGISTER: usize = 0xF;
 
 pub const TICKS_PER_FRAME: usize = 10;

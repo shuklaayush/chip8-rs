@@ -1,9 +1,11 @@
 mod constants;
 mod core;
-mod utils;
+mod display;
 
 use core::Chip8;
 use std::{env, fs};
+
+use display::TerminalDisplay;
 
 fn main() {
     let args: Vec<_> = env::args().collect();
@@ -14,7 +16,9 @@ fn main() {
     let path = args[1].as_str();
     let rom = fs::read(path).expect("Unable to read {path}");
 
+    let mut display = TerminalDisplay::default();
+
     let mut chip8 = Chip8::new();
     chip8.load(rom.as_slice());
-    chip8.run();
+    chip8.run(&mut display);
 }

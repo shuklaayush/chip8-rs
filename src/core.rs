@@ -1,7 +1,8 @@
-use super::constants::*;
-use super::utils::*;
-
 use rand::random;
+
+use crate::display::DisplayDriver;
+
+use super::constants::*;
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
@@ -13,7 +14,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     keypad: [bool; NUM_KEYS],
-    display: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    screen: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
 }
 
 impl Default for Chip8 {
@@ -28,7 +29,7 @@ impl Default for Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             keypad: [false; NUM_KEYS],
-            display: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+            screen: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
         }
     }
 }
@@ -59,7 +60,6 @@ impl Chip8 {
 
     fn fetch(&mut self) -> u16 {
         let pc = self.program_counter as usize;
-        
 
         u16::from_be_bytes([self.memory[pc], self.memory[pc + 1]])
     }
@@ -78,7 +78,7 @@ impl Chip8 {
             // 0x00E0
             (0x0, 0x0, 0xE, 0x0) => {
                 // Clear screen
-                self.display = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                self.screen = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -270,8 +270,8 @@ impl Chip8 {
                     for xs in 0..8 {
                         let x = (x0 + xs) as usize % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        flipped |= pixel & self.display[y][x];
-                        self.display[y][x] ^= pixel;
+                        flipped |= pixel & self.screen[y][x];
+                        self.screen[y][x] ^= pixel;
                     }
                 }
                 self.registers[FLAG_REGISTER] = flipped as u8;
@@ -405,29 +405,14 @@ impl Chip8 {
         self.keypad[key] = pressed;
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, display: &mut impl DisplayDriver) {
         'chip: loop {
             for _ in 0..TICKS_PER_FRAME {
                 self.tick();
             }
             self.tick_timers();
 
-            self.render();
-        }
-    }
-
-    pub fn render(&self) {
-        clear_screen();
-
-        for row in self.display {
-            for pixel in row {
-                if pixel {
-                    print!("█");
-                } else {
-                    print!(" ");
-                }
-            }
-            println!();
+            display.render(&self.screen);
         }
     }
 }
