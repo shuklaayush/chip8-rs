@@ -15,7 +15,7 @@ impl DisplayDriver for TerminalDisplay {
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|&pixel| if pixel { "█" } else { " " })
+                    .map(|&pixel| if pixel { "██" } else { "  " })
                     .collect::<String>()
             })
             .collect::<Vec<String>>()
