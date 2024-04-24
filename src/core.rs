@@ -1,7 +1,13 @@
 use rand::random;
 
-use super::constants::*;
-use crate::drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver};
+use crate::{
+    constants::{
+        DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET, FONTSET_START_ADDRESS, FONT_SIZE,
+        MEMORY_SIZE, NUM_KEYS, NUM_REGISTERS, OPCODE_SIZE, PROGRAM_START_ADDRESS, STACK_DEPTH,
+        TICKS_PER_FRAME,
+    },
+    drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver},
+};
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
