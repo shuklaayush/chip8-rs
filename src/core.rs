@@ -425,34 +425,34 @@ impl Chip8 {
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
     ) -> Result<(), Chip8Error> {
-        let ticks_per_frame = clk_freq / display.fps();
-        let ticks_per_timer = clk_freq / TIMER_FREQ;
         let clk_interval = Duration::from_millis(1000 / clk_freq);
+        let ticks_per_timer = clk_freq / TIMER_FREQ;
 
         let mut clk = 0;
+        let mut prev_time = SystemTime::now();
         loop {
-            let clk_start = SystemTime::now();
+            let curr_time = SystemTime::now();
+            let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
 
-            // TODO: async
-            let keys = input.poll()?;
-            self.keypad = keys;
+            if elapsed >= clk_interval {
+                // TODO: async
+                let keys = input.poll()?;
+                self.keypad = keys;
 
-            // CPU tick
-            self.tick()?;
+                // CPU tick
+                self.tick()?;
 
-            // TODO: async
-            if clk % ticks_per_timer == 0 {
-                self.tick_timers(audio)?;
-            }
-            // TODO: async
-            if clk % ticks_per_frame == 0 {
+                if clk % ticks_per_timer == 0 {
+                    self.tick_timers(audio)?;
+                }
+                // TODO: async
                 display.draw(&self.frame_buffer)?;
-            }
-            clk += 1;
 
-            let clk_end = SystemTime::now();
-            let elapsed = clk_end.duration_since(clk_start).unwrap_or_default();
-            sleep(clk_interval.checked_sub(elapsed).unwrap_or_default());
+                clk += 1;
+                prev_time = curr_time;
+            } else {
+                sleep(clk_interval.checked_sub(elapsed).unwrap_or_default());
+            }
         }
     }
 

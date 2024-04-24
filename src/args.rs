@@ -9,5 +9,5 @@ pub struct CmdArgs {
     #[arg(long = "clock-frequency", default_value_t = 480)]
     pub clk_freq: u64,
     #[arg(long, default_value_t = 60)]
-    pub fps: u64,
+    pub refresh_rate: u64,
 }

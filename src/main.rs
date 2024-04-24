@@ -21,7 +21,7 @@ fn main() {
     let rom = fs::read(args.rom).expect("Unable to read {path}");
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
-    let mut display = TerminalDisplay::new(terminal, args.fps);
+    let mut display = TerminalDisplay::new(terminal, args.refresh_rate);
     let mut input = TerminalKeyboardInput::default();
     let mut audio = TerminalAudio::default();
 
