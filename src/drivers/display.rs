@@ -17,6 +17,7 @@ pub trait DisplayDriver {
     fn draw(
         &mut self,
         frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+        clk_freq: Option<f64>,
     ) -> Result<(), Chip8Error>;
 }
 
@@ -44,6 +45,7 @@ impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
     fn draw(
         &mut self,
         frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+        clk_freq: Option<f64>,
     ) -> Result<(), Chip8Error> {
         let frame_interval = Duration::from_millis(1000 / self.refresh_rate());
 
@@ -70,7 +72,13 @@ impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
         if elapsed >= frame_interval {
             // TODO: Put behind feature flag
             let fps = 1.0 / elapsed.as_secs_f64();
-            let block = block.title(format!("FPS: {fps:.02}"));
+            let block = block.title({
+                if let Some(clk_freq) = clk_freq {
+                    format!("CPU: {clk_freq:.2}Hz FPS: {fps:.2}Hz")
+                } else {
+                    format!("FPS: {fps:.2}Hz")
+                }
+            });
             self.terminal
                 .draw(|frame| {
                     frame.render_widget(Paragraph::new(frame_str).block(block), area);

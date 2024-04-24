@@ -425,7 +425,7 @@ impl Chip8 {
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
     ) -> Result<(), Chip8Error> {
-        let clk_interval = Duration::from_millis(1000 / clk_freq);
+        let clk_interval = Duration::from_secs_f64(1.0 / clk_freq as f64);
         let ticks_per_timer = clk_freq / TIMER_FREQ;
 
         let mut clk = 0;
@@ -446,12 +446,18 @@ impl Chip8 {
                     self.tick_timers(audio)?;
                 }
                 // TODO: async
-                display.draw(&self.frame_buffer)?;
+                let freq = Some(1.0 / elapsed.as_secs_f64());
+                display.draw(&self.frame_buffer, freq)?;
 
                 clk += 1;
                 prev_time = curr_time;
             } else {
-                sleep(clk_interval.checked_sub(elapsed).unwrap_or_default());
+                sleep(
+                    clk_interval
+                        .checked_sub(elapsed)
+                        .unwrap_or_default()
+                        .mul_f64(0.8),
+                );
             }
         }
     }
