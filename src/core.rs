@@ -11,6 +11,7 @@ use crate::{
         TIMER_FREQ,
     },
     drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver},
+    error::Chip8Error,
 };
 
 pub struct Chip8 {
@@ -57,19 +58,28 @@ impl Chip8 {
         chip
     }
 
-    pub fn load(&mut self, bytes: &[u8]) {
+    pub fn load(&mut self, bytes: &[u8]) -> Result<(), Chip8Error> {
         let start = PROGRAM_START_ADDRESS as usize;
         let end = PROGRAM_START_ADDRESS as usize + bytes.len();
-        self.memory[start..end].copy_from_slice(bytes);
+
+        if end > MEMORY_SIZE {
+            Err(Chip8Error::RomTooBig(bytes.len()))
+        } else {
+            self.memory[start..end].copy_from_slice(bytes);
+            Ok(())
+        }
     }
 
-    fn fetch(&mut self) -> u16 {
+    fn fetch(&mut self) -> Result<u16, Chip8Error> {
         let pc = self.program_counter as usize;
-
-        u16::from_be_bytes([self.memory[pc], self.memory[pc + 1]])
+        if pc + 1 > MEMORY_SIZE {
+            Err(Chip8Error::ProgramCounterOverflow(self.program_counter))
+        } else {
+            Ok(u16::from_be_bytes([self.memory[pc], self.memory[pc + 1]]))
+        }
     }
 
-    fn execute(&mut self, op: u16) {
+    fn execute(&mut self, op: u16) -> Result<(), Chip8Error> {
         let nibbles = (
             (op & 0xF000) >> 12_u8,
             (op & 0x0F00) >> 8_u8,
@@ -383,25 +393,29 @@ impl Chip8 {
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            (_, _, _, _) => unimplemented!("Unimplemented opcode: 0x{op:04X}"),
+            (_, _, _, _) => return Err(Chip8Error::UnimplementedOpcode(op)),
         }
+
+        Ok(())
     }
 
     // Fetch -> Decode -> Execute
-    pub fn tick(&mut self) {
-        let op = self.fetch();
-        self.execute(op);
+    pub fn tick(&mut self) -> Result<(), Chip8Error> {
+        let op = self.fetch()?;
+        self.execute(op)
     }
 
-    pub fn tick_timers(&mut self, audio: &mut impl AudioDriver) {
+    pub fn tick_timers(&mut self, audio: &mut impl AudioDriver) -> Result<(), Chip8Error> {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
         }
 
         if self.sound_timer > 0 {
-            audio.beep();
+            audio.beep()?;
             self.sound_timer -= 1;
         }
+
+        Ok(())
     }
 
     pub fn run(
@@ -410,37 +424,47 @@ impl Chip8 {
         display: &mut impl DisplayDriver,
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
-    ) {
+    ) -> Result<(), Chip8Error> {
         let ticks_per_frame = clk_freq / display.fps();
         let ticks_per_timer = clk_freq / TIMER_FREQ;
         let clk_interval = Duration::from_millis(1000 / clk_freq);
 
         let mut clk = 0;
-        'cpu: loop {
+        loop {
             let clk_start = SystemTime::now();
 
             // TODO: async
-            match input.poll() {
-                Ok(keys) => self.keypad = keys,
-                Err(_) => break 'cpu,
-            }
+            let keys = input.poll()?;
+            self.keypad = keys;
+
             // CPU tick
-            self.tick();
+            self.tick()?;
+
             // TODO: async
             if clk % ticks_per_timer == 0 {
-                self.tick_timers(audio);
+                self.tick_timers(audio)?;
             }
             // TODO: async
             if clk % ticks_per_frame == 0 {
-                display.draw(&self.frame_buffer);
+                display.draw(&self.frame_buffer)?;
             }
             clk += 1;
 
             let clk_end = SystemTime::now();
-            let elapsed = clk_end
-                .duration_since(clk_start)
-                .expect("Clock may have gone backwards");
+            let elapsed = clk_end.duration_since(clk_start).unwrap_or_default();
             sleep(clk_interval.checked_sub(elapsed).unwrap_or_default());
         }
+    }
+
+    pub fn load_and_run(
+        &mut self,
+        bytes: &[u8],
+        clk_freq: u64,
+        display: &mut impl DisplayDriver,
+        input: &mut impl InputDriver,
+        audio: &mut impl AudioDriver,
+    ) -> Result<(), Chip8Error> {
+        self.load(bytes)?;
+        self.run(clk_freq, display, input, audio)
     }
 }

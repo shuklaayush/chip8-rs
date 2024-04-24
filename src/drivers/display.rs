@@ -1,10 +1,22 @@
-use ratatui::{backend::Backend, widgets::Paragraph, Terminal};
+use ratatui::{
+    backend::Backend,
+    layout::Rect,
+    widgets::{Block, Borders, Paragraph},
+    Terminal,
+};
 
-use crate::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use crate::{
+    constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
+    error::Chip8Error,
+};
 
 pub trait DisplayDriver {
     fn fps(&self) -> u64;
-    fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);
+
+    fn draw(
+        &mut self,
+        frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    ) -> Result<(), Chip8Error>;
 }
 
 pub struct TerminalDisplay<B: Backend> {
@@ -23,7 +35,10 @@ impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
         self.fps
     }
 
-    fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]) {
+    fn draw(
+        &mut self,
+        frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    ) -> Result<(), Chip8Error> {
         let frame_str = frame_buffer
             .iter()
             .map(|row| {
@@ -34,10 +49,14 @@ impl<B: Backend> DisplayDriver for TerminalDisplay<B> {
             .collect::<Vec<String>>()
             .join("\r\n");
 
+        let block = Block::new().borders(Borders::ALL);
+        let area = Rect::new(0, 0, 2 * DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16);
         self.terminal
             .draw(|frame| {
-                frame.render_widget(Paragraph::new(frame_str), frame.size());
+                frame.render_widget(Paragraph::new(frame_str).block(block), area);
             })
-            .expect("Failed to draw");
+            .map_err(|e| Chip8Error::DisplayError(e.to_string()))?;
+
+        Ok(())
     }
 }

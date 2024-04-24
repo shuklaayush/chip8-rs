@@ -2,6 +2,7 @@ mod args;
 mod constants;
 mod core;
 mod drivers;
+mod error;
 mod terminal;
 
 use args::CmdArgs;
@@ -18,7 +19,6 @@ fn main() {
     let args = CmdArgs::parse();
 
     let rom = fs::read(args.rom).expect("Unable to read {path}");
-
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
     let mut display = TerminalDisplay::new(terminal, args.fps);
@@ -26,8 +26,19 @@ fn main() {
     let mut audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
-    chip8.load(rom.as_slice());
-    chip8.run(args.clk_freq, &mut display, &mut input, &mut audio);
-
-    restore_terminal();
+    match chip8.load_and_run(
+        rom.as_slice(),
+        args.clk_freq,
+        &mut display,
+        &mut input,
+        &mut audio,
+    ) {
+        Ok(_) => {
+            restore_terminal();
+        }
+        Err(e) => {
+            restore_terminal();
+            print!("{e}")
+        }
+    };
 }
