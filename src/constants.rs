@@ -1,6 +1,7 @@
 pub const NUM_REGISTERS: usize = 16;
 pub const MEMORY_SIZE: usize = 4096;
 pub const STACK_DEPTH: usize = 16;
+pub const OPCODE_SIZE: u16 = 2;
 
 pub const NUM_KEYS: usize = 16;
 
@@ -32,3 +33,5 @@ pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
 ];
 
 pub const FLAG_REGISTER: usize = 0xF;
+
+pub const TICKS_PER_FRAME: usize = 10;
