@@ -375,7 +375,7 @@ impl Chip8 {
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            (_, _, _, _) => unimplemented!("Unimplemented opcode: 0x{op:X}"),
+            (_, _, _, _) => unimplemented!("Unimplemented opcode: 0x{op:04X}"),
         }
     }
 
