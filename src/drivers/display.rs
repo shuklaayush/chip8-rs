@@ -4,8 +4,6 @@ use crossterm::{
 };
 use std::{
     io::{stdout, Write},
-    thread::sleep,
-    time::Duration,
 };
 
 use crate::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
@@ -60,7 +58,5 @@ impl DisplayDriver for TerminalDisplay {
 
             self.prev_frame = frame;
         }
-
-        sleep(Duration::from_millis(1000 / self.fps))
     }
 }

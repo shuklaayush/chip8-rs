@@ -1,3 +1,8 @@
+use std::{
+    thread::sleep,
+    time::{Duration, SystemTime},
+};
+
 use rand::random;
 
 use crate::{
@@ -408,19 +413,31 @@ impl Chip8 {
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
     ) {
-        // TODO: async
         let ticks_per_frame = clk_freq / display.fps();
+        let clk_interval = Duration::from_millis(1000 / clk_freq);
+
+        let mut clk = 0;
         'chip: loop {
-            for _ in 0..ticks_per_frame {
-                match input.poll() {
-                    Ok(keys) => self.keypad = keys,
-                    Err(_) => break 'chip,
-                }
-                self.tick();
+            let clk_start = SystemTime::now();
+            // TODO: async
+            match input.poll() {
+                Ok(keys) => self.keypad = keys,
+                Err(_) => break 'chip,
             }
+            self.tick();
             self.tick_timers(audio);
 
-            display.draw(&self.frame_buffer);
+            // TODO: async
+            if clk % ticks_per_frame == 0 {
+                display.draw(&self.frame_buffer);
+            }
+            clk += 1;
+
+            let clk_end = SystemTime::now();
+            let elapsed = clk_end
+                .duration_since(clk_start)
+                .expect("Clock may have gone backwards");
+            sleep(clk_interval.checked_sub(elapsed).unwrap_or_default());
         }
     }
 }

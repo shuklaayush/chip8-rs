@@ -40,5 +40,5 @@ fn main() {
 
     let mut chip8 = Chip8::new();
     chip8.load(rom.as_slice());
-    chip8.run(500, &mut display, &mut input, &mut audio);
+    chip8.run(480, &mut display, &mut input, &mut audio);
 }
