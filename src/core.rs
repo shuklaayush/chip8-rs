@@ -4,7 +4,6 @@ use crate::{
     constants::{
         DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET, FONTSET_START_ADDRESS, FONT_SIZE,
         MEMORY_SIZE, NUM_KEYS, NUM_REGISTERS, OPCODE_SIZE, PROGRAM_START_ADDRESS, STACK_DEPTH,
-        TICKS_PER_FRAME,
     },
     drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver},
 };
@@ -385,6 +384,7 @@ impl Chip8 {
         }
     }
 
+    // Fetch -> Decode -> Execute
     pub fn tick(&mut self) {
         let op = self.fetch();
         self.execute(op);
@@ -403,12 +403,15 @@ impl Chip8 {
 
     pub fn run(
         &mut self,
+        clk_freq: u64,
         display: &mut impl DisplayDriver,
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
     ) {
+        // TODO: async
+        let ticks_per_frame = clk_freq / display.fps();
         'chip: loop {
-            for _ in 0..TICKS_PER_FRAME {
+            for _ in 0..ticks_per_frame {
                 match input.poll() {
                     Ok(keys) => self.keypad = keys,
                     Err(_) => break 'chip,

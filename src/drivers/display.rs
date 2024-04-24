@@ -11,20 +11,21 @@ use std::{
 use crate::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub trait DisplayDriver {
+    fn fps(&self) -> u64;
     fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]);
 }
 
 #[derive(Default)]
 pub struct TerminalDisplay {
-    frame_rate: u64,
+    fps: u64,
     prev_frame: String,
 }
 
 impl TerminalDisplay {
-    pub fn new(frame_rate: u64) -> Self {
+    pub fn new(fps: u64) -> Self {
         execute!(stdout(), Hide).expect("Failed to hide cursor");
         Self {
-            frame_rate,
+            fps,
             prev_frame: Default::default(),
         }
     }
@@ -37,6 +38,10 @@ impl Drop for TerminalDisplay {
 }
 
 impl DisplayDriver for TerminalDisplay {
+    fn fps(&self) -> u64 {
+        self.fps
+    }
+
     fn draw(&mut self, frame_buffer: &[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]) {
         let frame = frame_buffer
             .iter()
@@ -56,6 +61,6 @@ impl DisplayDriver for TerminalDisplay {
             self.prev_frame = frame;
         }
 
-        sleep(Duration::from_millis(1000 / self.frame_rate))
+        sleep(Duration::from_millis(1000 / self.fps))
     }
 }
