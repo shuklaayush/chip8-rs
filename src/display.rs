@@ -1,3 +1,5 @@
+use std::io::{stdout, Write};
+
 use super::constants::{CLEAR_STR, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub trait DisplayDriver {
@@ -22,7 +24,10 @@ impl DisplayDriver for TerminalDisplay {
             .join("\n");
 
         if frame != self.prev_frame {
-            print!("{CLEAR_STR}{frame}");
+            let mut stdout = stdout();
+            write!(stdout, "{CLEAR_STR}{frame}").unwrap();
+            stdout.flush().unwrap();
+
             self.prev_frame = frame;
         }
     }

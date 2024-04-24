@@ -1,20 +1,21 @@
 use std::time::Duration;
 
 use crossterm::{
-    event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
 use crate::constants::NUM_KEYS;
 
 const KEYMAP: [char; NUM_KEYS] = [
-    'X', '1', '2', '3', 'Q', 'W', 'E', 'A', 'S', 'D', 'Z', 'C', '4', 'R', 'F', 'V',
+    'x', '1', '2', '3', 'q', 'w', 'e', 'a', 's', 'd', 'z', 'c', '4', 'r', 'f', 'v',
 ];
 
 pub trait InputDriver {
     fn poll(&mut self) -> Result<[bool; NUM_KEYS], ()>;
 }
 
+#[derive(Default)]
 pub struct KeyboardInput {}
 
 impl KeyboardInput {
@@ -26,24 +27,30 @@ impl KeyboardInput {
 impl InputDriver for KeyboardInput {
     fn poll(&mut self) -> Result<[bool; NUM_KEYS], ()> {
         let mut keys = [false; NUM_KEYS];
+        enable_raw_mode().unwrap();
         if poll(Duration::from_millis(1_00)).unwrap() {
-            enable_raw_mode().unwrap();
             let event = read().unwrap();
-            disable_raw_mode().unwrap();
 
-            if let Event::Key(KeyEvent { code, kind, .. }) = event {
-                match code {
-                    KeyCode::Char(c) => {
-                        let c = c.to_ascii_uppercase();
+            if let Event::Key(KeyEvent {
+                code,
+                kind,
+                modifiers,
+                ..
+            }) = event
+            {
+                match (code, modifiers) {
+                    (KeyCode::Esc, _) => return Err(()),
+                    (KeyCode::Char('c'), KeyModifiers::CONTROL) => return Err(()),
+                    (KeyCode::Char(c), _) => {
                         if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
                             keys[idx] = kind == KeyEventKind::Press
                         }
                     }
-                    KeyCode::Esc => return Err(()),
                     _ => (),
                 }
             }
         }
+        disable_raw_mode().unwrap();
         Ok(keys)
     }
 }

@@ -1,3 +1,4 @@
+mod audio;
 mod constants;
 mod core;
 mod display;
@@ -6,6 +7,7 @@ mod input;
 use core::Chip8;
 use std::{env, fs};
 
+use audio::TerminalAudio;
 use display::TerminalDisplay;
 use input::KeyboardInput;
 
@@ -19,9 +21,10 @@ fn main() {
     let rom = fs::read(path).expect("Unable to read {path}");
 
     let mut display = TerminalDisplay::default();
-    let mut input = KeyboardInput::new();
+    let mut input = KeyboardInput::default();
+    let mut audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
     chip8.load(rom.as_slice());
-    chip8.run(&mut display, &mut input);
+    chip8.run(&mut display, &mut input, &mut audio);
 }

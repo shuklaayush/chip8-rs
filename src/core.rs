@@ -1,7 +1,7 @@
 use rand::random;
 
 use super::constants::*;
-use crate::{display::DisplayDriver, input::InputDriver};
+use crate::{audio::AudioDriver, display::DisplayDriver, input::InputDriver};
 
 pub struct Chip8 {
     registers: [u8; NUM_REGISTERS],
@@ -388,20 +388,23 @@ impl Chip8 {
         self.execute(op);
     }
 
-    pub fn tick_timers(&mut self) {
+    pub fn tick_timers(&mut self, audio: &mut impl AudioDriver) {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
         }
 
         if self.sound_timer > 0 {
-            if self.sound_timer == 1 {
-                // BEEP
-            }
+            audio.beep();
             self.sound_timer -= 1;
         }
     }
 
-    pub fn run(&mut self, display: &mut impl DisplayDriver, input: &mut impl InputDriver) {
+    pub fn run(
+        &mut self,
+        display: &mut impl DisplayDriver,
+        input: &mut impl InputDriver,
+        audio: &mut impl AudioDriver,
+    ) {
         'chip: loop {
             match input.poll() {
                 Ok(keys) => self.keypad = keys,
@@ -411,9 +414,10 @@ impl Chip8 {
             for _ in 0..TICKS_PER_FRAME {
                 self.tick();
             }
-            self.tick_timers();
+            self.tick_timers(audio);
 
             display.draw(&self.frame_buffer);
+            // println!("{CLEAR_STR}{:?}", self.keypad);
         }
     }
 }
