@@ -1,3 +1,7 @@
+use crossterm::{
+    cursor::{Hide, Show},
+    execute,
+};
 use std::{
     io::{stdout, Write},
     thread::sleep,
@@ -18,10 +22,17 @@ pub struct TerminalDisplay {
 
 impl TerminalDisplay {
     pub fn new(frame_rate: u64) -> Self {
+        execute!(stdout(), Hide).expect("Failed to hide cursor");
         Self {
             frame_rate,
-            ..Default::default()
+            prev_frame: Default::default(),
         }
+    }
+}
+
+impl Drop for TerminalDisplay {
+    fn drop(&mut self) {
+        execute!(stdout(), Show).expect("Failed to show cursor");
     }
 }
 
@@ -35,7 +46,7 @@ impl DisplayDriver for TerminalDisplay {
                     .collect::<String>()
             })
             .collect::<Vec<String>>()
-            .join("\n");
+            .join("\r\n");
 
         if frame != self.prev_frame {
             let mut stdout = stdout();
