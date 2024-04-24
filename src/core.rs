@@ -275,14 +275,14 @@ impl Chip8 {
             // DRAW
             // 0xDXYN
             (0xD, x, y, n) => {
-                let x0 = self.registers[x as usize];
-                let y0 = self.registers[y as usize];
+                let x0 = self.registers[x as usize] as usize % DISPLAY_WIDTH;
+                let y0 = self.registers[y as usize] as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
                 for ys in 0..n {
-                    let y = (y0 + ys) as usize % DISPLAY_HEIGHT;
+                    let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
                     let pixels = self.memory[self.index_register as usize + ys as usize];
                     for xs in 0..8 {
-                        let x = (x0 + xs) as usize % DISPLAY_WIDTH;
+                        let x = (x0 + xs) % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
                         flipped |= pixel & self.frame_buffer[y][x];
                         self.frame_buffer[y][x] ^= pixel;
