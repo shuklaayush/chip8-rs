@@ -9,6 +9,12 @@ pub const FONTSET_START_ADDRESS: u16 = 0x0;
 pub const PROGRAM_START_ADDRESS: u16 = 0x200;
 
 pub const NUM_KEYS: usize = 16;
+pub const KEYMAP_HEX: [usize; NUM_KEYS] = [
+    0x1, 0x2, 0x3, 0xC, // 1 2 3 C
+    0x4, 0x5, 0x6, 0xD, // 4 5 6 D
+    0x7, 0x8, 0x9, 0xE, // 7 8 9 E
+    0xA, 0x0, 0xB, 0xF, // A 0 B F
+];
 
 pub const DISPLAY_WIDTH: usize = 64;
 pub const DISPLAY_HEIGHT: usize = 32;
