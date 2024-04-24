@@ -1,8 +1,12 @@
 use crossterm::{
-    event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    event::{
+        poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
+    execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use std::time::Duration;
+use std::{io::stdout, time::Duration};
 
 use crate::constants::{KEYMAP_HEX, NUM_KEYS};
 
@@ -18,15 +22,35 @@ pub trait InputDriver {
 }
 
 #[derive(Default)]
-pub struct KeyboardInput {}
+pub struct TerminalKeyboardInput {
+    keys: [bool; NUM_KEYS],
+}
 
-impl InputDriver for KeyboardInput {
-    fn poll(&mut self) -> Result<[bool; NUM_KEYS], ()> {
-        let mut keys = [false; NUM_KEYS];
+impl TerminalKeyboardInput {
+    pub fn new() -> Self {
         enable_raw_mode().expect("Failed to enable raw mode");
+        execute!(
+            stdout(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_EVENT_TYPES)
+        )
+        .expect("Failed to enable kitty protocol");
+        Self {
+            keys: Default::default(),
+        }
+    }
+}
+
+impl Drop for TerminalKeyboardInput {
+    fn drop(&mut self) {
+        execute!(stdout(), PopKeyboardEnhancementFlags).expect("Failed to disable kitty protocol");
+        disable_raw_mode().expect("Failed to disable raw mode");
+    }
+}
+
+impl InputDriver for TerminalKeyboardInput {
+    fn poll(&mut self) -> Result<[bool; NUM_KEYS], ()> {
         if poll(Duration::from_micros(1)).expect("Failed to poll event") {
             let event = read().expect("Failed to read input");
-
             if let Event::Key(KeyEvent {
                 code,
                 kind,
@@ -39,14 +63,13 @@ impl InputDriver for KeyboardInput {
                     (KeyCode::Esc, _) => return Err(()),
                     (KeyCode::Char(c), _) => {
                         if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
-                            keys[KEYMAP_HEX[idx]] = kind == KeyEventKind::Press
+                            self.keys[KEYMAP_HEX[idx]] = kind == KeyEventKind::Press;
                         }
                     }
                     _ => (),
                 }
             }
         }
-        disable_raw_mode().expect("Failed to disable raw mode");
-        Ok(keys)
+        Ok(self.keys)
     }
 }

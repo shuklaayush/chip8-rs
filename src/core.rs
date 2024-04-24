@@ -1,5 +1,3 @@
-
-
 use rand::random;
 
 use super::constants::*;
@@ -409,7 +407,6 @@ impl Chip8 {
                     Ok(keys) => self.keypad = keys,
                     Err(_) => break 'chip,
                 }
-
                 self.tick();
             }
             self.tick_timers(audio);

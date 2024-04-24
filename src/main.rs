@@ -7,7 +7,9 @@ use core::Chip8;
 use crossterm::terminal;
 use std::{env, fs};
 
-use crate::drivers::{audio::TerminalAudio, display::TerminalDisplay, input::KeyboardInput};
+use crate::drivers::{
+    audio::TerminalAudio, display::TerminalDisplay, input::TerminalKeyboardInput,
+};
 
 fn main() {
     let args: Vec<_> = env::args().collect();
@@ -33,7 +35,7 @@ fn main() {
     let rom = fs::read(path).expect("Unable to read {path}");
 
     let mut display = TerminalDisplay::new(60);
-    let mut input = KeyboardInput::default();
+    let mut input = TerminalKeyboardInput::new();
     let mut audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
