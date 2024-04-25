@@ -24,7 +24,7 @@ pub struct Chip8 {
     stack_pointer: u8,
     delay_timer: u8,
     sound_timer: u8,
-    keypad: [bool; NUM_KEYS],
+    keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
     frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
 }
 
@@ -39,7 +39,7 @@ impl Default for Chip8 {
             stack_pointer: 0,
             delay_timer: 0,
             sound_timer: 0,
-            keypad: [false; NUM_KEYS],
+            keypad: Arc::new([false; NUM_KEYS].map(RwLock::new)),
             frame_buffer: Arc::new(RwLock::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT])),
         }
     }
@@ -298,7 +298,7 @@ impl Chip8 {
             // 0xEX9E
             (0xE, x, 0x9, 0xE) => {
                 let vx = self.registers[x as usize];
-                if self.keypad[vx as usize] {
+                if *self.keypad[vx as usize].read().unwrap() {
                     self.program_counter += OPCODE_SIZE;
                 }
                 // Increment PC
@@ -308,7 +308,7 @@ impl Chip8 {
             // 0xEXA1
             (0xE, x, 0xA, 0x1) => {
                 let vx = self.registers[x as usize];
-                if !self.keypad[vx as usize] {
+                if !*self.keypad[vx as usize].read().unwrap() {
                     self.program_counter += OPCODE_SIZE;
                 }
                 // Increment PC
@@ -325,8 +325,8 @@ impl Chip8 {
             // 0xFX0A
             (0xF, x, 0x0, 0xA) => {
                 let mut pressed = false;
-                for (i, key) in self.keypad.into_iter().enumerate() {
-                    if key {
+                for (i, key) in self.keypad.iter().enumerate() {
+                    if *key.read().unwrap() {
                         self.registers[x as usize] = i as u8;
                         pressed = true;
                         break;
@@ -422,10 +422,9 @@ impl Chip8 {
 
     fn run_cpu(
         &mut self,
-        shared_res: Arc<RwLock<Result<(), Chip8Error>>>,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
         clk_freq: u64,
-        input: &mut impl InputDriver,
-        audio: &mut impl AudioDriver,
+        mut audio: impl AudioDriver,
         maybe_freq: Arc<RwLock<Option<f64>>>,
     ) -> Result<(), Chip8Error> {
         let clk_interval = Duration::from_secs_f64(1.0 / clk_freq as f64);
@@ -433,19 +432,17 @@ impl Chip8 {
 
         let mut clk = 0;
         let mut prev_time = SystemTime::now();
-        while shared_res.read().unwrap().is_ok() {
+        // TODO: Create macro for timed loop
+        while status.read().unwrap().is_ok() {
             let curr_time = SystemTime::now();
             let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
 
             if elapsed >= clk_interval {
-                // TODO: async
-                input.poll(&mut self.keypad)?;
-
                 // CPU tick
                 self.tick()?;
 
                 if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
-                    self.tick_timers(audio)?;
+                    self.tick_timers(&mut audio)?;
                 }
                 *maybe_freq.write().unwrap() = Some(1.0 / elapsed.as_secs_f64());
 
@@ -468,39 +465,45 @@ impl Chip8 {
         &mut self,
         clk_freq: u64,
         mut display: impl DisplayDriver + 'static,
-        input: &mut impl InputDriver,
-        audio: &mut impl AudioDriver,
+        mut input: impl InputDriver + 'static,
+        audio: impl AudioDriver,
     ) -> Result<(), Chip8Error> {
-        let cpu_shared_res = Arc::new(RwLock::new(Ok(())));
-        let cpu_maybe_freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
+        let status = Arc::new(RwLock::new(Ok(())));
+        let maybe_freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
 
-        let disp_frame_buffer = self.frame_buffer.clone();
-        let disp_maybe_freq = cpu_maybe_freq.clone();
-        let disp_shared_res = cpu_shared_res.clone();
+        // Input loop
+        let input_handle = {
+            let status = status.clone();
+            let keypad = self.keypad.clone();
 
+            tokio::spawn(async move {
+                if let Err(err) = input.run(status.clone(), keypad) {
+                    *status.write().unwrap() = Err(err);
+                }
+            })
+        };
         // Render loop
-        let render_handle = tokio::spawn(async move {
-            if let Err(err) =
-                display.run(disp_shared_res.clone(), disp_frame_buffer, disp_maybe_freq)
-            {
-                *disp_shared_res.write().unwrap() = Err(err);
-            }
-        });
+        let render_handle = {
+            let frame_buffer = self.frame_buffer.clone();
+            let maybe_freq = maybe_freq.clone();
+            let status = status.clone();
+
+            tokio::spawn(async move {
+                if let Err(err) = display.run(status.clone(), frame_buffer, maybe_freq) {
+                    *status.write().unwrap() = Err(err);
+                }
+            })
+        };
         // Main CPU loop
-        if let Err(err) = self.run_cpu(
-            cpu_shared_res.clone(),
-            clk_freq,
-            input,
-            audio,
-            cpu_maybe_freq,
-        ) {
-            *cpu_shared_res.write().unwrap() = Err(err);
+        if let Err(err) = self.run_cpu(status.clone(), clk_freq, audio, maybe_freq) {
+            *status.write().unwrap() = Err(err);
         }
 
-        // Wait for rendering loop
+        // Wait for input and rendering loop
+        input_handle.await.unwrap();
         render_handle.await.unwrap();
 
-        let res = cpu_shared_res.read().unwrap().clone();
+        let res = status.read().unwrap().clone();
         res
     }
 
@@ -509,8 +512,8 @@ impl Chip8 {
         bytes: &[u8],
         clk_freq: u64,
         display: impl DisplayDriver + 'static,
-        input: &mut impl InputDriver,
-        audio: &mut impl AudioDriver,
+        input: impl InputDriver + 'static,
+        audio: impl AudioDriver,
     ) -> Result<(), Chip8Error> {
         self.load(bytes)?;
         self.run(clk_freq, display, input, audio).await

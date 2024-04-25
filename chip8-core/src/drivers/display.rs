@@ -20,14 +20,14 @@ pub trait DisplayDriver: Send {
 
     fn run(
         &mut self,
-        shared_res: Arc<RwLock<Result<(), Chip8Error>>>,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
         frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
         clk_freq: Arc<RwLock<Option<f64>>>,
     ) -> Result<(), Chip8Error> {
         let frame_interval = Duration::from_millis(1000 / self.refresh_rate());
 
         let mut prev_time = SystemTime::now();
-        while shared_res.read().unwrap().is_ok() {
+        while status.read().unwrap().is_ok() {
             let curr_time = SystemTime::now();
             let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
             if elapsed >= frame_interval {

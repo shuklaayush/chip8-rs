@@ -3,8 +3,8 @@ use chip8_core::{
     drivers::InputDriver,
     error::Chip8Error,
 };
-use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::time::Duration;
+use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use std::sync::{Arc, RwLock};
 
 const KEYMAP: [char; NUM_KEYS] = [
     '1', '2', '3', '4', // 1 2 3 C
@@ -17,8 +17,12 @@ const KEYMAP: [char; NUM_KEYS] = [
 pub struct TerminalKeyboardInput {}
 
 impl InputDriver for TerminalKeyboardInput {
-    fn poll(&mut self, keypad: &mut [bool; NUM_KEYS]) -> Result<(), Chip8Error> {
-        if poll(Duration::from_micros(1)).map_err(|e| Chip8Error::KeypadError(e.to_string()))? {
+    fn run(
+        &mut self,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
+        keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
+    ) -> Result<(), Chip8Error> {
+        while status.read().unwrap().is_ok() {
             let event = read().map_err(|e| Chip8Error::KeypadError(e.to_string()))?;
             if let Event::Key(KeyEvent {
                 code,
@@ -27,20 +31,21 @@ impl InputDriver for TerminalKeyboardInput {
                 ..
             }) = event
             {
-                match (code, modifiers) {
-                    (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                match (modifiers, code) {
+                    (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
                         return Err(Chip8Error::Interrupt)
                     }
-                    (KeyCode::Esc, _) => return Err(Chip8Error::Interrupt),
-                    (KeyCode::Char(c), _) => {
+                    (_, KeyCode::Esc) => return Err(Chip8Error::Interrupt),
+                    (_, KeyCode::Char(c)) => {
                         if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
-                            keypad[KEYMAP_HEX[idx]] = kind == KeyEventKind::Press;
+                            *keypad[KEYMAP_HEX[idx]].write().unwrap() = kind == KeyEventKind::Press;
                         }
                     }
                     _ => (),
                 }
             }
         }
+
         Ok(())
     }
 }

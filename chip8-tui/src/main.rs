@@ -20,18 +20,12 @@ async fn main() {
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
     let display = TerminalDisplay::new(terminal, args.refresh_rate);
-    let mut input = TerminalKeyboardInput::default();
-    let mut audio = TerminalAudio::default();
+    let input = TerminalKeyboardInput::default();
+    let audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
     match chip8
-        .load_and_run(
-            rom.as_slice(),
-            args.clk_freq,
-            display,
-            &mut input,
-            &mut audio,
-        )
+        .load_and_run(rom.as_slice(), args.clk_freq, display, input, audio)
         .await
     {
         Ok(_) => {
