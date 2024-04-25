@@ -1,10 +1,4 @@
-use std::io::{stdout, Write};
-
-use crate::error::Chip8Error;
-
-pub trait AudioDriver {
-    fn beep(&mut self) -> Result<(), Chip8Error>;
-}
+use chip8_core::drivers::AudioDriver;
 
 #[derive(Default)]
 pub struct TerminalAudio {}

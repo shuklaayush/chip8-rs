@@ -1,5 +1,6 @@
 use rand::random;
 use std::{
+    sync::Arc,
     thread::sleep,
     time::{Duration, SystemTime},
 };
@@ -10,7 +11,7 @@ use crate::{
         MEMORY_SIZE, NUM_KEYS, NUM_REGISTERS, OPCODE_SIZE, PROGRAM_START_ADDRESS, STACK_DEPTH,
         TIMER_FREQ,
     },
-    drivers::{audio::AudioDriver, display::DisplayDriver, input::InputDriver},
+    drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
 };
 
@@ -24,7 +25,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     keypad: [bool; NUM_KEYS],
-    frame_buffer: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    frame_buffer: Arc<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
 }
 
 impl Default for Chip8 {
@@ -39,7 +40,7 @@ impl Default for Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             keypad: [false; NUM_KEYS],
-            frame_buffer: [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+            frame_buffer: Arc::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
         }
     }
 }
@@ -92,7 +93,7 @@ impl Chip8 {
             // 0x00E0
             (0x0, 0x0, 0xE, 0x0) => {
                 // Clear screen
-                self.frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                *self.frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -418,7 +419,7 @@ impl Chip8 {
         Ok(())
     }
 
-    pub fn run(
+    pub async fn run(
         &mut self,
         clk_freq: u64,
         display: &mut impl DisplayDriver,
@@ -427,6 +428,10 @@ impl Chip8 {
     ) -> Result<(), Chip8Error> {
         let clk_interval = Duration::from_secs_f64(1.0 / clk_freq as f64);
         let ticks_per_timer = clk_freq / TIMER_FREQ;
+
+        let mut maybe_freq = Arc::new(Some(clk_freq as f64));
+
+        tokio::spawn(display.run(self.frame_buffer, maybe_freq));
 
         let mut clk = 0;
         let mut prev_time = SystemTime::now();
@@ -441,12 +446,11 @@ impl Chip8 {
                 // CPU tick
                 self.tick()?;
 
-                if clk % ticks_per_timer == 0 {
+                if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                     self.tick_timers(audio)?;
                 }
                 // TODO: async
-                let maybe_freq = Some(1.0 / elapsed.as_secs_f64());
-                display.draw(&self.frame_buffer, maybe_freq)?;
+                *maybe_freq = Some(1.0 / elapsed.as_secs_f64());
 
                 clk += 1;
                 prev_time = curr_time;
@@ -461,7 +465,7 @@ impl Chip8 {
         }
     }
 
-    pub fn load_and_run(
+    pub async fn load_and_run(
         &mut self,
         bytes: &[u8],
         clk_freq: u64,
@@ -470,6 +474,6 @@ impl Chip8 {
         audio: &mut impl AudioDriver,
     ) -> Result<(), Chip8Error> {
         self.load(bytes)?;
-        self.run(clk_freq, display, input, audio)
+        self.run(clk_freq, display, input, audio).await
     }
 }

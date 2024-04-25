@@ -6,8 +6,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 use std::io::{stdout, Error, Stdout};
-
-use crate::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use chip8_core::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, Error> {
     enable_raw_mode().expect("Failed to enable raw mode");

@@ -1,10 +1,10 @@
-use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::time::Duration;
-
-use crate::{
+use chip8_core::{
     constants::{KEYMAP_HEX, NUM_KEYS},
+    drivers::InputDriver,
     error::Chip8Error,
 };
+use crossterm::event::{poll, read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use std::time::Duration;
 
 const KEYMAP: [char; NUM_KEYS] = [
     '1', '2', '3', '4', // 1 2 3 C
@@ -12,10 +12,6 @@ const KEYMAP: [char; NUM_KEYS] = [
     'a', 's', 'd', 'f', // 7 8 9 E
     'z', 'x', 'c', 'v', // A 0 B F
 ];
-
-pub trait InputDriver {
-    fn poll(&mut self, keypad: &mut [bool; NUM_KEYS]) -> Result<(), Chip8Error>;
-}
 
 #[derive(Default)]
 pub struct TerminalKeyboardInput {}

@@ -1,9 +1,6 @@
-mod args;
-mod constants;
-mod core;
-mod drivers;
-mod error;
 mod terminal;
+mod args;
+mod drivers;
 
 use args::CmdArgs;
 use clap::Parser;
@@ -15,7 +12,8 @@ use crate::drivers::{
     audio::TerminalAudio, display::TerminalDisplay, input::TerminalKeyboardInput,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = CmdArgs::parse();
 
     let rom = fs::read(args.rom).expect("Unable to read {path}");
@@ -26,13 +24,16 @@ fn main() {
     let mut audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();
-    match chip8.load_and_run(
-        rom.as_slice(),
-        args.clk_freq,
-        &mut display,
-        &mut input,
-        &mut audio,
-    ) {
+    match chip8
+        .load_and_run(
+            rom.as_slice(),
+            args.clk_freq,
+            &mut display,
+            &mut input,
+            &mut audio,
+        )
+        .await
+    {
         Ok(_) => {
             restore_terminal();
         }
