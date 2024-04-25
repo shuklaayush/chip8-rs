@@ -1,9 +1,5 @@
 use rand::random;
-use std::{
-    sync::{Arc, RwLock},
-    thread::sleep,
-    time::{Duration, SystemTime},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::{
     constants::{
@@ -13,6 +9,7 @@ use crate::{
     },
     drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
+    util::run_loop,
 };
 
 pub struct Chip8 {
@@ -427,38 +424,20 @@ impl Chip8 {
         mut audio: impl AudioDriver,
         maybe_freq: Arc<RwLock<Option<f64>>>,
     ) -> Result<(), Chip8Error> {
-        let clk_interval = Duration::from_secs_f64(1.0 / clk_freq as f64);
         let ticks_per_timer = clk_freq / TIMER_FREQ;
 
         let mut clk = 0;
-        let mut prev_time = SystemTime::now();
-        // TODO: Create macro for timed loop
-        while status.read().unwrap().is_ok() {
-            let curr_time = SystemTime::now();
-            let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
+        run_loop(status, clk_freq, move |elapsed| {
+            self.tick()?;
 
-            if elapsed >= clk_interval {
-                // CPU tick
-                self.tick()?;
-
-                if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
-                    self.tick_timers(&mut audio)?;
-                }
-                *maybe_freq.write().unwrap() = Some(1.0 / elapsed.as_secs_f64());
-
-                clk += 1;
-                prev_time = curr_time;
-            } else {
-                sleep(
-                    clk_interval
-                        .checked_sub(elapsed)
-                        .unwrap_or_default()
-                        .mul_f64(0.8),
-                );
+            if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
+                self.tick_timers(&mut audio)?;
             }
-        }
+            *maybe_freq.write().unwrap() = Some(1.0 / elapsed.as_secs_f64());
+            clk += 1;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub async fn run(

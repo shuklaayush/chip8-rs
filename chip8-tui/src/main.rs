@@ -20,7 +20,7 @@ async fn main() {
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
     let display = TerminalDisplay::new(terminal, args.refresh_rate);
-    let input = TerminalKeyboardInput::default();
+    let input = TerminalKeyboardInput::new(args.input_freq);
     let audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();

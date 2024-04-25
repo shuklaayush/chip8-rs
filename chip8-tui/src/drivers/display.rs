@@ -25,14 +25,14 @@ impl<B: Backend> TerminalDisplay<B> {
 }
 
 impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
-    fn refresh_rate(&self) -> u64 {
+    fn frequency(&self) -> u64 {
         self.refresh_rate
     }
 
     fn draw(
         &mut self,
         frame_buffer: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
-        clk_freq: Option<f64>,
+        cpu_freq: Option<f64>,
         fps: Option<f64>,
     ) -> Result<(), Chip8Error> {
         let frame_str = frame_buffer
@@ -47,7 +47,7 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
 
         let block = Block::bordered().title(format!(
             "{}{}",
-            clk_freq.map_or("".to_string(), |f| format!("CPU: {f:.2}Hz")),
+            cpu_freq.map_or("".to_string(), |f| format!("CPU: {f:.2}Hz")),
             fps.map_or("".to_string(), |f| format!(" FPS: {f:.2}Hz"))
         ));
         let area = Rect::new(

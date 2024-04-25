@@ -1,10 +1,9 @@
 use chip8_core::{
-    constants::{KEYMAP_HEX, NUM_KEYS},
-    drivers::InputDriver,
+    constants::NUM_KEYS,
+    drivers::{InputDriver, InputKind},
     error::Chip8Error,
 };
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::sync::{Arc, RwLock};
 
 const KEYMAP: [char; NUM_KEYS] = [
     '1', '2', '3', '4', // 1 2 3 C
@@ -13,39 +12,50 @@ const KEYMAP: [char; NUM_KEYS] = [
     'z', 'x', 'c', 'v', // A 0 B F
 ];
 
-#[derive(Default)]
-pub struct TerminalKeyboardInput {}
+pub struct TerminalKeyboardInput {
+    input_freq: u64,
+}
+
+impl TerminalKeyboardInput {
+    pub fn new(input_freq: u64) -> Self {
+        Self { input_freq }
+    }
+}
 
 impl InputDriver for TerminalKeyboardInput {
-    fn run(
-        &mut self,
-        status: Arc<RwLock<Result<(), Chip8Error>>>,
-        keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
-    ) -> Result<(), Chip8Error> {
-        while status.read().unwrap().is_ok() {
-            let event = read().map_err(|e| Chip8Error::KeypadError(e.to_string()))?;
-            if let Event::Key(KeyEvent {
-                code,
-                kind,
-                modifiers,
-                ..
-            }) = event
-            {
-                match (modifiers, code) {
-                    (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
-                        return Err(Chip8Error::Interrupt)
-                    }
-                    (_, KeyCode::Esc) => return Err(Chip8Error::Interrupt),
-                    (_, KeyCode::Char(c)) => {
+    fn frequency(&self) -> u64 {
+        self.input_freq
+    }
+
+    fn poll(&self) -> Result<Option<(usize, InputKind)>, Chip8Error> {
+        let event = read().map_err(|e| Chip8Error::KeypadError(e.to_string()))?;
+        if let Event::Key(KeyEvent {
+            code,
+            kind,
+            modifiers,
+            ..
+        }) = event
+        {
+            match (modifiers, code) {
+                (KeyModifiers::CONTROL, KeyCode::Char('c')) => return Err(Chip8Error::Interrupt),
+                (_, KeyCode::Esc) => return Err(Chip8Error::Interrupt),
+                (_, KeyCode::Char(c)) => {
+                    let kind = match kind {
+                        KeyEventKind::Press => Some(InputKind::Press),
+                        KeyEventKind::Release => Some(InputKind::Release),
+                        _ => None,
+                    };
+
+                    if let Some(kind) = kind {
                         if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
-                            *keypad[KEYMAP_HEX[idx]].write().unwrap() = kind == KeyEventKind::Press;
+                            return Ok(Some((idx, kind)));
                         }
                     }
-                    _ => (),
                 }
+                _ => return Ok(None),
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 }
