@@ -10,6 +10,6 @@ pub struct CmdArgs {
     pub clk_freq: u64,
     #[arg(long, default_value_t = 60)]
     pub refresh_rate: u64,
-    #[arg(long = "input-frequency", default_value_t = 60)]
+    #[arg(long = "input-frequency", default_value_t = 560)]
     pub input_freq: u64,
 }

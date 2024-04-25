@@ -12,7 +12,11 @@ pub(crate) fn run_loop(
     frequency: u64,
     mut fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
 ) -> Result<(), Chip8Error> {
-    let interval = Duration::from_secs_f64(1.0 / frequency as f64);
+    let interval = if frequency > 0 {
+        Duration::from_secs_f64(1.0 / frequency as f64)
+    } else {
+        Duration::ZERO
+    };
 
     let mut prev_time = SystemTime::now();
     while status.read().unwrap().is_ok() {
