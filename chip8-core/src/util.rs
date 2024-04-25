@@ -4,10 +4,13 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::{error::Chip8Error, rwlock::CheckedRead};
+use crate::{
+    error::Chip8Error,
+    rwlock::{CheckedRead, CheckedWrite},
+};
 
 #[inline]
-pub(crate) fn run_loop(
+pub(crate) fn run_loop_inner(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
     mut fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
@@ -37,4 +40,17 @@ pub(crate) fn run_loop(
     }
 
     Ok(())
+}
+
+#[inline]
+pub(crate) fn run_loop(
+    status: Arc<RwLock<Result<(), Chip8Error>>>,
+    frequency: u64,
+    fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
+) {
+    let res = run_loop_inner(status.clone(), frequency, fn_tick);
+
+    if let Err(err) = res {
+        *status.checked_write().unwrap() = Err(err);
+    }
 }

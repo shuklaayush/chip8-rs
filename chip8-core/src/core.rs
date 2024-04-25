@@ -425,7 +425,7 @@ impl Chip8 {
         clk_freq: u64,
         mut audio: impl AudioDriver,
         maybe_freq: Arc<RwLock<Option<f64>>>,
-    ) -> Result<(), Chip8Error> {
+    ) {
         let ticks_per_timer = clk_freq / TIMER_FREQ;
 
         let mut clk = 0;
@@ -449,6 +449,7 @@ impl Chip8 {
         mut input: impl InputDriver + 'static,
         audio: impl AudioDriver,
     ) -> Result<(), Chip8Error> {
+        // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
         let maybe_freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
 
@@ -457,11 +458,7 @@ impl Chip8 {
             let status = status.clone();
             let keypad = self.keypad.clone();
 
-            tokio::spawn(async move {
-                if let Err(err) = input.run(status.clone(), keypad) {
-                    *status.write().unwrap() = Err(err);
-                }
-            })
+            tokio::spawn(async move { input.run(status, keypad) })
         };
         // Render loop
         let render_handle = {
@@ -469,16 +466,10 @@ impl Chip8 {
             let maybe_freq = maybe_freq.clone();
             let status = status.clone();
 
-            tokio::spawn(async move {
-                if let Err(err) = display.run(status.clone(), frame_buffer, maybe_freq) {
-                    *status.write().unwrap() = Err(err);
-                }
-            })
+            tokio::spawn(async move { display.run(status, frame_buffer, maybe_freq) })
         };
         // Main CPU loop
-        if let Err(err) = self.run_cpu(status.clone(), clk_freq, audio, maybe_freq) {
-            *status.write().unwrap() = Err(err);
-        }
+        self.run_cpu(status.clone(), clk_freq, audio, maybe_freq);
 
         // Wait for input and rendering loop
         input_handle

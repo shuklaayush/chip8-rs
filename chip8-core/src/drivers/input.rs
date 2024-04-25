@@ -22,12 +22,12 @@ pub trait InputDriver: Send {
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
-    ) -> Result<(), Chip8Error> {
-        run_loop(status, self.frequency(), move |_| {
+    ) {
+        run_loop(status.clone(), self.frequency(), move |_| {
             if let Some((idx, kind)) = self.poll()? {
-                *keypad[KEYMAP_HEX[idx]].checked_write()? = kind == InputKind::Press;
+                *keypad[KEYMAP_HEX[idx]].checked_write()? = kind == InputKind::Press
             }
             Ok(())
-        })
+        });
     }
 }

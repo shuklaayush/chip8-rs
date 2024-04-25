@@ -22,8 +22,8 @@ pub trait DisplayDriver: Send {
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
         cpu_freq: Arc<RwLock<Option<f64>>>,
-    ) -> Result<(), Chip8Error> {
-        run_loop(status, self.frequency(), move |elapsed| {
+    ) {
+        run_loop(status.clone(), self.frequency(), move |elapsed| {
             // TODO: Put behind feature flag
             let fps = 1.0 / elapsed.as_secs_f64();
 
@@ -32,6 +32,6 @@ pub trait DisplayDriver: Send {
                 *cpu_freq.checked_read()?,
                 Some(fps),
             )
-        })
+        });
     }
 }
