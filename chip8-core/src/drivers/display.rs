@@ -1,4 +1,7 @@
-use std::{future::Future, sync::Arc};
+use std::{
+    sync::{Arc, RwLock},
+    time::{Duration, SystemTime},
+};
 
 use crate::{
     constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
@@ -15,9 +18,32 @@ pub trait DisplayDriver: Send {
         fps: Option<f64>,
     ) -> Result<(), Chip8Error>;
 
-    async fn run(
+    fn run(
         &mut self,
-        frame_buffer: Arc<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
-        clk_freq: Arc<Option<f64>>,
-    ) -> impl Future<Output = Result<(), Chip8Error>> + Send;
+        shared_res: Arc<RwLock<Result<(), Chip8Error>>>,
+        frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
+        clk_freq: Arc<RwLock<Option<f64>>>,
+    ) -> Result<(), Chip8Error> {
+        let frame_interval = Duration::from_millis(1000 / self.refresh_rate());
+
+        let mut prev_time = SystemTime::now();
+        while shared_res.read().unwrap().is_ok() {
+            let curr_time = SystemTime::now();
+            let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
+            if elapsed >= frame_interval {
+                // TODO: Put behind feature flag
+                let fps = 1.0 / elapsed.as_secs_f64();
+
+                self.draw(
+                    *frame_buffer.read().unwrap(),
+                    *clk_freq.read().unwrap(),
+                    Some(fps),
+                )?;
+
+                prev_time = curr_time;
+            }
+        }
+
+        Ok(())
+    }
 }

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Chip8Error {
     ProgramCounterOverflow(u16),
     UnimplementedOpcode(u16),

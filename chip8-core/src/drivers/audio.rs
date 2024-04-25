@@ -1,5 +1,5 @@
 use crate::error::Chip8Error;
 
-pub trait AudioDriver {
+pub trait AudioDriver: Send {
     fn beep(&mut self) -> Result<(), Chip8Error>;
 }

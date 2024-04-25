@@ -1,6 +1,6 @@
 use rand::random;
 use std::{
-    sync::Arc,
+    sync::{Arc, RwLock},
     thread::sleep,
     time::{Duration, SystemTime},
 };
@@ -25,7 +25,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     keypad: [bool; NUM_KEYS],
-    frame_buffer: Arc<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
+    frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
 }
 
 impl Default for Chip8 {
@@ -40,7 +40,7 @@ impl Default for Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             keypad: [false; NUM_KEYS],
-            frame_buffer: Arc::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
+            frame_buffer: Arc::new(RwLock::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT])),
         }
     }
 }
@@ -93,7 +93,7 @@ impl Chip8 {
             // 0x00E0
             (0x0, 0x0, 0xE, 0x0) => {
                 // Clear screen
-                *self.frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                *self.frame_buffer.write().unwrap() = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -279,14 +279,15 @@ impl Chip8 {
                 let x0 = self.registers[x as usize] as usize % DISPLAY_WIDTH;
                 let y0 = self.registers[y as usize] as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
+                let mut frame_buffer = (*self.frame_buffer).write().unwrap();
                 for ys in 0..n {
                     let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
                     let pixels = self.memory[self.index_register as usize + ys as usize];
                     for xs in 0..8 {
                         let x = (x0 + xs) % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        flipped |= pixel & self.frame_buffer[y][x];
-                        self.frame_buffer[y][x] ^= pixel;
+                        flipped |= pixel & frame_buffer[y][x];
+                        frame_buffer[y][x] ^= pixel;
                     }
                 }
                 self.registers[FLAG_REGISTER] = flipped as u8;
@@ -419,23 +420,20 @@ impl Chip8 {
         Ok(())
     }
 
-    pub async fn run(
+    fn run_cpu(
         &mut self,
+        shared_res: Arc<RwLock<Result<(), Chip8Error>>>,
         clk_freq: u64,
-        display: &mut impl DisplayDriver,
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
+        maybe_freq: Arc<RwLock<Option<f64>>>,
     ) -> Result<(), Chip8Error> {
         let clk_interval = Duration::from_secs_f64(1.0 / clk_freq as f64);
         let ticks_per_timer = clk_freq / TIMER_FREQ;
 
-        let mut maybe_freq = Arc::new(Some(clk_freq as f64));
-
-        tokio::spawn(display.run(self.frame_buffer, maybe_freq));
-
         let mut clk = 0;
         let mut prev_time = SystemTime::now();
-        loop {
+        while shared_res.read().unwrap().is_ok() {
             let curr_time = SystemTime::now();
             let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
 
@@ -449,8 +447,7 @@ impl Chip8 {
                 if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                     self.tick_timers(audio)?;
                 }
-                // TODO: async
-                *maybe_freq = Some(1.0 / elapsed.as_secs_f64());
+                *maybe_freq.write().unwrap() = Some(1.0 / elapsed.as_secs_f64());
 
                 clk += 1;
                 prev_time = curr_time;
@@ -463,13 +460,55 @@ impl Chip8 {
                 );
             }
         }
+
+        Ok(())
+    }
+
+    pub async fn run(
+        &mut self,
+        clk_freq: u64,
+        mut display: impl DisplayDriver + 'static,
+        input: &mut impl InputDriver,
+        audio: &mut impl AudioDriver,
+    ) -> Result<(), Chip8Error> {
+        let cpu_shared_res = Arc::new(RwLock::new(Ok(())));
+        let cpu_maybe_freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
+
+        let disp_frame_buffer = self.frame_buffer.clone();
+        let disp_maybe_freq = cpu_maybe_freq.clone();
+        let disp_shared_res = cpu_shared_res.clone();
+
+        // Render loop
+        let render_handle = tokio::spawn(async move {
+            if let Err(err) =
+                display.run(disp_shared_res.clone(), disp_frame_buffer, disp_maybe_freq)
+            {
+                *disp_shared_res.write().unwrap() = Err(err);
+            }
+        });
+        // Main CPU loop
+        if let Err(err) = self.run_cpu(
+            cpu_shared_res.clone(),
+            clk_freq,
+            input,
+            audio,
+            cpu_maybe_freq,
+        ) {
+            *cpu_shared_res.write().unwrap() = Err(err);
+        }
+
+        // Wait for rendering loop
+        render_handle.await.unwrap();
+
+        let res = cpu_shared_res.read().unwrap().clone();
+        res
     }
 
     pub async fn load_and_run(
         &mut self,
         bytes: &[u8],
         clk_freq: u64,
-        display: &mut impl DisplayDriver,
+        display: impl DisplayDriver + 'static,
         input: &mut impl InputDriver,
         audio: &mut impl AudioDriver,
     ) -> Result<(), Chip8Error> {

@@ -1,4 +1,5 @@
-use chip8_core::drivers::AudioDriver;
+use chip8_core::{drivers::AudioDriver, error::Chip8Error};
+use std::io::{stdout, Write};
 
 #[derive(Default)]
 pub struct TerminalAudio {}

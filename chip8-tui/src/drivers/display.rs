@@ -9,11 +9,6 @@ use ratatui::{
     widgets::{Block, Paragraph},
     Terminal,
 };
-use std::{
-    future::Future,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
 
 pub struct TerminalDisplay<B: Backend> {
     terminal: Terminal<B>,
@@ -69,26 +64,5 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
             .map_err(|e| Chip8Error::DisplayError(e.to_string()))?;
 
         Ok(())
-    }
-
-    async fn run(
-        &mut self,
-        frame_buffer: Arc<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
-        clk_freq: Arc<Option<f64>>,
-    ) -> impl Future<Output = Result<(), Chip8Error>> + Send {
-        let frame_interval = Duration::from_millis(1000 / self.refresh_rate());
-
-        let mut prev_time = SystemTime::now();
-        loop {
-            let curr_time = SystemTime::now();
-            let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
-            if elapsed >= frame_interval {
-                // TODO: Put behind feature flag
-                let fps = 1.0 / elapsed.as_secs_f64();
-                self.draw(*frame_buffer, *clk_freq, Some(fps));
-
-                prev_time = curr_time;
-            }
-        }
     }
 }

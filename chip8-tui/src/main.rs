@@ -1,10 +1,10 @@
-mod terminal;
 mod args;
 mod drivers;
+mod terminal;
 
 use args::CmdArgs;
+use chip8_core::core::Chip8;
 use clap::Parser;
-use core::Chip8;
 use std::fs;
 use terminal::{restore_terminal, setup_terminal};
 
@@ -19,7 +19,7 @@ async fn main() {
     let rom = fs::read(args.rom).expect("Unable to read {path}");
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
-    let mut display = TerminalDisplay::new(terminal, args.refresh_rate);
+    let display = TerminalDisplay::new(terminal, args.refresh_rate);
     let mut input = TerminalKeyboardInput::default();
     let mut audio = TerminalAudio::default();
 
@@ -28,7 +28,7 @@ async fn main() {
         .load_and_run(
             rom.as_slice(),
             args.clk_freq,
-            &mut display,
+            display,
             &mut input,
             &mut audio,
         )
