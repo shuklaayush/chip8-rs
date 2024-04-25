@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     constants::{KEYMAP_HEX, NUM_KEYS},
     error::Chip8Error,
+    rwlock::CheckedWrite,
     util::run_loop,
 };
 
@@ -24,7 +25,7 @@ pub trait InputDriver: Send {
     ) -> Result<(), Chip8Error> {
         run_loop(status, self.frequency(), move |_| {
             if let Some((idx, kind)) = self.poll()? {
-                *keypad[KEYMAP_HEX[idx]].write().unwrap() = kind == InputKind::Press;
+                *keypad[KEYMAP_HEX[idx]].checked_write()? = kind == InputKind::Press;
             }
             Ok(())
         })

@@ -9,6 +9,7 @@ use crate::{
     },
     drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
+    rwlock::{CheckedRead, CheckedWrite},
     util::run_loop,
 };
 
@@ -90,7 +91,8 @@ impl Chip8 {
             // 0x00E0
             (0x0, 0x0, 0xE, 0x0) => {
                 // Clear screen
-                *self.frame_buffer.write().unwrap() = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                let mut frame_buffer = self.frame_buffer.checked_write()?;
+                *frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -276,7 +278,7 @@ impl Chip8 {
                 let x0 = self.registers[x as usize] as usize % DISPLAY_WIDTH;
                 let y0 = self.registers[y as usize] as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
-                let mut frame_buffer = (*self.frame_buffer).write().unwrap();
+                let mut frame_buffer = (*self.frame_buffer).checked_write()?;
                 for ys in 0..n {
                     let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
                     let pixels = self.memory[self.index_register as usize + ys as usize];
@@ -295,7 +297,7 @@ impl Chip8 {
             // 0xEX9E
             (0xE, x, 0x9, 0xE) => {
                 let vx = self.registers[x as usize];
-                if *self.keypad[vx as usize].read().unwrap() {
+                if *self.keypad[vx as usize].checked_read()? {
                     self.program_counter += OPCODE_SIZE;
                 }
                 // Increment PC
@@ -305,7 +307,7 @@ impl Chip8 {
             // 0xEXA1
             (0xE, x, 0xA, 0x1) => {
                 let vx = self.registers[x as usize];
-                if !*self.keypad[vx as usize].read().unwrap() {
+                if !*self.keypad[vx as usize].checked_read()? {
                     self.program_counter += OPCODE_SIZE;
                 }
                 // Increment PC
@@ -323,7 +325,7 @@ impl Chip8 {
             (0xF, x, 0x0, 0xA) => {
                 let mut pressed = false;
                 for (i, key) in self.keypad.iter().enumerate() {
-                    if *key.read().unwrap() {
+                    if *key.checked_read()? {
                         self.registers[x as usize] = i as u8;
                         pressed = true;
                         break;
@@ -433,7 +435,7 @@ impl Chip8 {
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers(&mut audio)?;
             }
-            *maybe_freq.write().unwrap() = Some(1.0 / elapsed.as_secs_f64());
+            *maybe_freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
             clk += 1;
 
             Ok(())
@@ -479,11 +481,15 @@ impl Chip8 {
         }
 
         // Wait for input and rendering loop
-        input_handle.await.unwrap();
-        render_handle.await.unwrap();
+        input_handle
+            .await
+            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        render_handle
+            .await
+            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
 
-        let res = status.read().unwrap().clone();
-        res
+        let res = status.checked_read()?;
+        res.clone()
     }
 
     pub async fn load_and_run(

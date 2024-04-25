@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
     error::Chip8Error,
+    rwlock::CheckedRead,
     util::run_loop,
 };
 
@@ -27,8 +28,8 @@ pub trait DisplayDriver: Send {
             let fps = 1.0 / elapsed.as_secs_f64();
 
             self.draw(
-                *frame_buffer.read().unwrap(),
-                *cpu_freq.read().unwrap(),
+                *frame_buffer.checked_read()?,
+                *cpu_freq.checked_read()?,
                 Some(fps),
             )
         })

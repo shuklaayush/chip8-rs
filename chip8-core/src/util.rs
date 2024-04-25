@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::error::Chip8Error;
+use crate::{error::Chip8Error, rwlock::CheckedRead};
 
 #[inline]
 pub(crate) fn run_loop(
@@ -19,7 +19,7 @@ pub(crate) fn run_loop(
     };
 
     let mut prev_time = SystemTime::now();
-    while status.read().unwrap().is_ok() {
+    while status.checked_read()?.is_ok() {
         let curr_time = SystemTime::now();
         let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
 

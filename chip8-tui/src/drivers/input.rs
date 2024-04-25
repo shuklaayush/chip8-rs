@@ -28,7 +28,7 @@ impl InputDriver for TerminalKeyboardInput {
     }
 
     fn poll(&self) -> Result<Option<(usize, InputKind)>, Chip8Error> {
-        let event = read().map_err(|e| Chip8Error::KeypadError(e.to_string()))?;
+        let event = read().map_err(|e| Chip8Error::InputError(e.to_string()))?;
         if let Event::Key(KeyEvent {
             code,
             kind,

@@ -6,8 +6,11 @@ pub enum Chip8Error {
     UnimplementedOpcode(u16),
     RomTooBig(usize),
     DisplayError(String),
-    KeypadError(String),
+    InputError(String),
     AudioError(String),
+    AsyncAwaitError(String),
+    MutexReadError(String),
+    MutexWriteError(String),
     Interrupt,
 }
 
@@ -26,11 +29,17 @@ impl Display for Chip8Error {
             Chip8Error::DisplayError(str) => {
                 write!(f, "Display Error: {str}")
             }
-            Chip8Error::KeypadError(str) => {
-                write!(f, "Keypad Error: {str}")
+            Chip8Error::InputError(str) => {
+                write!(f, "Input Error: {str}")
             }
             Chip8Error::AudioError(str) => {
                 write!(f, "Audio Error: {str}")
+            }
+            Chip8Error::MutexReadError(str) => {
+                write!(f, "Mutex read error: {str}")
+            }
+            Chip8Error::MutexWriteError(str) => {
+                write!(f, "Mutex write error: {str}")
             }
             _ => Ok(()),
         }
