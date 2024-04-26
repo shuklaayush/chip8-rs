@@ -125,7 +125,6 @@ impl Chip8 {
                 0x8004 => Ok(Instruction::AddXY(x, y)),
                 // 0x8XY5
                 0x8005 => Ok(Instruction::SubXY(x, y)),
-                // TODO: Check
                 // 0x8XY6
                 0x8006 => Ok(Instruction::ShiftRight(x)),
                 // 0x8XY7

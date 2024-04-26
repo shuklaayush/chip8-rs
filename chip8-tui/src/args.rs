@@ -16,10 +16,10 @@ pub struct CmdArgs {
     #[arg(long, default_value_t = false)]
     pub headless: bool,
 
-    #[arg(long = "background-color", default_value_t = Color::Black)]
+    #[arg(long = "background-color", default_value_t = Color::Black, conflicts_with="headless")]
     pub bg_color: Color,
-    #[arg(long = "foreground-color", default_value_t = Color::White)]
+    #[arg(long = "foreground-color", default_value_t = Color::White, conflicts_with="headless")]
     pub fg_color: Color,
-    #[arg(long = "border-color", default_value_t = Color::White)]
+    #[arg(long = "border-color", default_value_t = Color::White, conflicts_with="headless")]
     pub border_color: Color,
 }
