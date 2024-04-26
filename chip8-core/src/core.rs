@@ -324,6 +324,7 @@ impl Chip8 {
             // WAIT KEY
             // 0xFX0A
             (0xF, x, 0x0, 0xA) => {
+                // TODO: Is this right? Better to halt thread and wait for key press?
                 let mut pressed = false;
                 for (i, key) in self.keypad.iter().enumerate() {
                     if *key.checked_read()? {

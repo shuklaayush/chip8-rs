@@ -19,7 +19,13 @@ async fn main() {
     let rom = fs::read(args.rom).expect("Unable to read {path}");
     let terminal = setup_terminal().expect("Failed to setup terminal");
 
-    let display = TerminalDisplay::new(terminal, args.refresh_rate);
+    let display = TerminalDisplay::new(
+        terminal,
+        args.refresh_rate,
+        args.bg_color,
+        args.fg_color,
+        args.border_color,
+    );
     let input = TerminalKeyboardInput::new(args.input_freq);
     let audio = TerminalAudio::default();
 

@@ -1,4 +1,5 @@
 use clap::Parser;
+use ratatui::style::Color;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -12,4 +13,10 @@ pub struct CmdArgs {
     pub refresh_rate: u64,
     #[arg(long = "input-frequency", default_value_t = 120)]
     pub input_freq: u64,
+    #[arg(long = "background-color", default_value_t = Color::Black)]
+    pub bg_color: Color,
+    #[arg(long = "foreground-color", default_value_t = Color::White)]
+    pub fg_color: Color,
+    #[arg(long = "border-color", default_value_t = Color::White)]
+    pub border_color: Color,
 }

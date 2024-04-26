@@ -6,20 +6,34 @@ use chip8_core::{
 use ratatui::{
     backend::Backend,
     layout::Rect,
+    style::{Color, Stylize},
     widgets::{Block, Paragraph},
     Terminal,
 };
 
+// TODO: Builder pattern
 pub struct TerminalDisplay<B: Backend> {
     terminal: Terminal<B>,
     refresh_rate: u64,
+    bg_color: Color,
+    fg_color: Color,
+    border_color: Color,
 }
 
 impl<B: Backend> TerminalDisplay<B> {
-    pub fn new(terminal: Terminal<B>, refresh_rate: u64) -> Self {
+    pub fn new(
+        terminal: Terminal<B>,
+        refresh_rate: u64,
+        bg_color: Color,
+        fg_color: Color,
+        border_color: Color,
+    ) -> Self {
         Self {
             terminal,
             refresh_rate,
+            bg_color,
+            fg_color,
+            border_color,
         }
     }
 }
@@ -45,11 +59,13 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
             .collect::<Vec<String>>()
             .join("\n");
 
-        let block = Block::bordered().title(format!(
-            "CHIP-8 {}{}",
-            cpu_freq.map_or("".to_string(), |f| format!("{f:.2}Hz")),
-            fps.map_or("".to_string(), |f| format!(" {f:.2}FPS"))
-        ));
+        let block = Block::bordered()
+            .title(format!(
+                "CHIP-8 {}{}",
+                cpu_freq.map_or("".to_string(), |f| format!("{f:.2}Hz")),
+                fps.map_or("".to_string(), |f| format!(" {f:.2}FPS"))
+            ))
+            .fg(self.border_color);
         let area = Rect::new(
             0,
             0,
@@ -59,7 +75,13 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
 
         self.terminal
             .draw(|frame| {
-                frame.render_widget(Paragraph::new(frame_str).block(block), area);
+                frame.render_widget(
+                    Paragraph::new(frame_str)
+                        .bg(self.bg_color)
+                        .fg(self.fg_color)
+                        .block(block),
+                    area,
+                );
             })
             .map_err(|e| Chip8Error::DisplayError(e.to_string()))?;
 
