@@ -9,6 +9,7 @@ use crate::{
     },
     drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
+    instructions::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
     util::run_loop,
 };
@@ -78,205 +79,226 @@ impl Chip8 {
         }
     }
 
-    fn execute(&mut self, op: u16) -> Result<(), Chip8Error> {
-        let nibbles = (
-            (op & 0xF000) >> 12_u8,
-            (op & 0x0F00) >> 8_u8,
-            (op & 0x00F0) >> 4_u8,
-            (op & 0x000F) as u8,
-        );
+    pub fn decode(opcode: u16) -> Result<Instruction, Chip8Error> {
+        let x = ((opcode >> 8) & 0x000F) as usize;
+        let y = ((opcode >> 4) & 0x000F) as usize;
 
-        match nibbles {
-            // CLS
-            // 0x00E0
-            (0x0, 0x0, 0xE, 0x0) => {
-                // Clear screen
+        let n = (opcode & 0x000F) as u8;
+        let nn = (opcode & 0x00FF) as u8;
+        let nnn = opcode & 0x0FFF;
+
+        match opcode & 0xF000 {
+            0x0000 => match opcode & 0xF0FF {
+                // 0x00E0
+                0x00E0 => Ok(Instruction::ClearDisplay),
+                // 0x00EE
+                0x00EE => Ok(Instruction::Return),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+            // 0x1NNN
+            0x1000 => Ok(Instruction::Jump(nnn)),
+            // 0x2NNN
+            0x2000 => Ok(Instruction::Call(nnn)),
+            // 0x3XNN
+            0x3000 => Ok(Instruction::SkipEqual(x, nn)),
+            // 0x4XNN
+            0x4000 => Ok(Instruction::SkipNotEqual(x, nn)),
+            // 0x5XY0
+            0x5000 => match opcode & 0xF00F {
+                0x5000 => Ok(Instruction::SkipEqualXY(x, y)),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+            // 0x6XNN
+            0x6000 => Ok(Instruction::Load(x, nn)),
+            // 0x7XNN
+            0x7000 => Ok(Instruction::Add(x, nn)),
+            0x8000 => match opcode & 0xF00F {
+                // 0x8XY0
+                0x8000 => Ok(Instruction::Move(x, y)),
+                // 0x8XY1
+                0x8001 => Ok(Instruction::Or(x, y)),
+                // 0x8XY2
+                0x8002 => Ok(Instruction::And(x, y)),
+                // 0x8XY3
+                0x8003 => Ok(Instruction::Xor(x, y)),
+                // 0x8XY4
+                0x8004 => Ok(Instruction::AddXY(x, y)),
+                // 0x8XY5
+                0x8005 => Ok(Instruction::SubXY(x, y)),
+                // TODO: Check
+                // 0x8XY6
+                0x8006 => Ok(Instruction::ShiftRight(x)),
+                // 0x8XY7
+                0x8007 => Ok(Instruction::SubYX(x, y)),
+                // 0x8XYE
+                0x800E => Ok(Instruction::ShiftLeft(x)),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+            0x9000 => match opcode & 0xF00F {
+                // 0x9XY0
+                0x9000 => Ok(Instruction::SkipNotEqualXY(x, y)),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+            // 0xANNN
+            0xA000 => Ok(Instruction::LoadI(nnn)),
+            // 0xBNNN
+            0xB000 => Ok(Instruction::JumpV0(nnn)),
+            // 0xCXNN
+            0xC000 => Ok(Instruction::Random(x, nn)),
+            // 0xDXYN
+            0xD000 => Ok(Instruction::Draw(x, y, n)),
+            0xE000 => match opcode & 0xF0FF {
+                // 0xEX9E
+                0xE09E => Ok(Instruction::SkipKeyPressed(x)),
+                // 0xEXA1
+                0xE0A1 => Ok(Instruction::SkipKeyNotPressed(x)),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+
+            0xF000 => match opcode & 0xF0FF {
+                // 0xFX07
+                0xF007 => Ok(Instruction::LoadDelay(x)),
+                // 0xFX0A
+                0xF00A => Ok(Instruction::WaitKeyPress(x)),
+                // 0xFX15
+                0xF015 => Ok(Instruction::SetDelay(x)),
+                // 0xFX18
+                0xF018 => Ok(Instruction::SetSound(x)),
+                // 0xFX1E
+                0xF01E => Ok(Instruction::AddI(x)),
+                // 0xFX29
+                0xF029 => Ok(Instruction::LoadFont(x)),
+                // 0xFX33
+                0xF033 => Ok(Instruction::StoreBCD(x)),
+                // 0xFX55
+                0xF055 => Ok(Instruction::StoreRegisters(x)),
+                // 0xFX65
+                0xF065 => Ok(Instruction::LoadMemory(x)),
+                _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+            },
+            _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
+        }
+    }
+
+    fn execute(&mut self, instruction: Instruction) -> Result<(), Chip8Error> {
+        match instruction {
+            Instruction::ClearDisplay => {
                 let mut frame_buffer = self.frame_buffer.checked_write()?;
                 *frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // RET
-            // 0x00EE
-            (0x0, 0x0, 0xE, 0xE) => {
-                // Pop return address from stack
+            Instruction::Return => {
                 self.stack_pointer -= 1;
-                // Jump to top of stack
                 self.program_counter = self.stack[self.stack_pointer as usize];
             }
-            // JMP NNN
-            // 0x1NNN
-            (0x1, _, _, _) => {
-                let nnn = op & 0xFFF;
-                // Jump to 0xNNN
+            Instruction::Jump(nnn) => {
                 self.program_counter = nnn;
             }
-            // CALL NNN
-            // 0x2NNN
-            (0x2, _, _, _) => {
-                let nnn = op & 0xFFF;
-                // Push address of next instruction to stack
+            Instruction::Call(nnn) => {
                 self.stack[self.stack_pointer as usize] = self.program_counter + OPCODE_SIZE;
                 self.stack_pointer += 1;
-                // Jump to 0xNNN
                 self.program_counter = nnn;
             }
-            // SKIP VX == NN
-            // 0x3XNN
-            (0x3, x, _, _) => {
-                let nn = (op & 0xFF) as u8;
-                if self.registers[x as usize] == nn {
+            Instruction::SkipEqual(x, nn) => {
+                if self.registers[x] == nn {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // SKIP VX != NN
-            // 0x4XNN
-            (0x4, x, _, _) => {
-                let nn = (op & 0xFF) as u8;
-                if self.registers[x as usize] != nn {
+            Instruction::SkipNotEqual(x, nn) => {
+                if self.registers[x] != nn {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // SKIP VX == VY
-            // 0x5XY0
-            (0x5, x, y, 0) => {
-                if self.registers[x as usize] == self.registers[y as usize] {
+            Instruction::SkipEqualXY(x, y) => {
+                if self.registers[x] == self.registers[y] {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX = NN
-            // 0x6XNN
-            (0x6, x, _, _) => {
-                let nn = (op & 0xFF) as u8;
-                self.registers[x as usize] = nn;
-                // Increment PC
+            Instruction::Load(x, nn) => {
+                self.registers[x] = nn;
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX += NN
-            // 0x7XNN
-            (0x7, x, _, _) => {
-                let nn = (op & 0xFF) as u8;
-                self.registers[x as usize] = self.registers[x as usize].wrapping_add(nn);
-                // Increment PC
+            Instruction::Add(x, nn) => {
+                self.registers[x] = self.registers[x].wrapping_add(nn);
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX = VY
-            // 0x8XY0
-            (0x8, x, y, 0x0) => {
-                self.registers[x as usize] = self.registers[y as usize];
-                // Increment PC
+            Instruction::Move(x, y) => {
+                self.registers[x] = self.registers[y];
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX |= VY
-            // 0x8XY1
-            (0x8, x, y, 0x1) => {
-                self.registers[x as usize] |= self.registers[y as usize];
-                // Increment PC
+            Instruction::Or(x, y) => {
+                self.registers[x] |= self.registers[y];
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX &= VY
-            // 0x8XY2
-            (0x8, x, y, 0x2) => {
-                self.registers[x as usize] &= self.registers[y as usize];
-                // Increment PC
+            Instruction::And(x, y) => {
+                self.registers[x] &= self.registers[y];
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX ^= VY
-            // 0x8XY3
-            (0x8, x, y, 0x3) => {
-                self.registers[x as usize] ^= self.registers[y as usize];
-                // Increment PC
+            Instruction::Xor(x, y) => {
+                self.registers[x] ^= self.registers[y];
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX += VY
-            // 0x8XY4
-            (0x8, x, y, 0x4) => {
-                let (sum, carry) =
-                    self.registers[x as usize].overflowing_add(self.registers[y as usize]);
-                self.registers[x as usize] = sum;
+            Instruction::AddXY(x, y) => {
+                let (sum, carry) = self.registers[x].overflowing_add(self.registers[y]);
+                self.registers[x] = sum;
                 self.registers[FLAG_REGISTER] = carry as u8;
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX -= VY
-            // 0x8XY5
-            (0x8, x, y, 0x5) => {
-                let (diff, borrow) =
-                    self.registers[x as usize].overflowing_sub(self.registers[y as usize]);
-                self.registers[x as usize] = diff;
+            Instruction::SubXY(x, y) => {
+                let (diff, borrow) = self.registers[x].overflowing_sub(self.registers[y]);
+                self.registers[x] = diff;
                 self.registers[FLAG_REGISTER] = !borrow as u8;
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX >>= 1
-            // 0x8XY6
-            (0x8, x, _, 0x6) => {
-                self.registers[x as usize] >>= 1;
-                self.registers[FLAG_REGISTER] = self.registers[x as usize] & 1;
-                // Increment PC
+            Instruction::ShiftRight(x) => {
+                self.registers[x] >>= 1;
+                self.registers[FLAG_REGISTER] = self.registers[x] & 1;
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX = VY - VX
-            // 0x8XY7
-            (0x8, x, y, 0x7) => {
-                let (diff, borrow) =
-                    self.registers[y as usize].overflowing_sub(self.registers[x as usize]);
-                self.registers[x as usize] = diff;
+            Instruction::SubYX(x, y) => {
+                let (diff, borrow) = self.registers[y].overflowing_sub(self.registers[x]);
+                self.registers[x] = diff;
                 self.registers[FLAG_REGISTER] = !borrow as u8;
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX <<= 1
-            // 0x8XYE
-            (0x8, x, _, 0xE) => {
-                self.registers[x as usize] <<= 1;
-                self.registers[FLAG_REGISTER] = (self.registers[x as usize] >> 7) & 1;
-                // Increment PC
+            Instruction::ShiftLeft(x) => {
+                self.registers[x] <<= 1;
+                self.registers[FLAG_REGISTER] = (self.registers[x] >> 7) & 1;
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // SKIP VX != VY
-            // 0x9XY0
-            (0x9, x, y, 0x0) => {
-                if self.registers[x as usize] != self.registers[y as usize] {
+            Instruction::SkipNotEqualXY(x, y) => {
+                if self.registers[x] != self.registers[y] {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // I = NNN
-            // 0xANNN
-            (0xA, _, _, _) => {
-                let nnn = op & 0xFFF;
+            Instruction::LoadI(nnn) => {
                 self.index_register = nnn;
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // JMP V0 + NNN
-            // 0xBNNN
-            (0xB, _, _, _) => {
-                let nnn = op & 0xFFF;
+            Instruction::JumpV0(nnn) => {
                 self.program_counter = (self.registers[0] as u16) + nnn;
             }
-            // VX = rand() & NN
-            // 0xCNNN
-            (0xC, x, _, _) => {
-                let nn = (op & 0xFF) as u8;
+            Instruction::Random(x, nn) => {
+                // TODO: See if random is portable/wasm-friendly
                 let r: u8 = random();
-                self.registers[x as usize] = r & nn;
-                // Increment PC
+                self.registers[x] = r & nn;
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // DRAW
-            // 0xDXYN
-            (0xD, x, y, n) => {
-                let x0 = self.registers[x as usize] as usize % DISPLAY_WIDTH;
-                let y0 = self.registers[y as usize] as usize % DISPLAY_HEIGHT;
+            Instruction::Draw(x, y, n) => {
+                let x0 = self.registers[x] as usize % DISPLAY_WIDTH;
+                let y0 = self.registers[y] as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
                 let mut frame_buffer = (*self.frame_buffer).checked_write()?;
                 for ys in 0..n {
@@ -290,112 +312,81 @@ impl Chip8 {
                     }
                 }
                 self.registers[FLAG_REGISTER] = flipped as u8;
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // SKIP KEY PRESS
-            // 0xEX9E
-            (0xE, x, 0x9, 0xE) => {
-                let vx = self.registers[x as usize];
+            Instruction::SkipKeyPressed(x) => {
+                let vx = self.registers[x];
                 if *self.keypad[vx as usize].checked_read()? {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // SKIP KEY RELEASE
-            // 0xEXA1
-            (0xE, x, 0xA, 0x1) => {
-                let vx = self.registers[x as usize];
+            Instruction::SkipKeyNotPressed(x) => {
+                let vx = self.registers[x];
                 if !*self.keypad[vx as usize].checked_read()? {
                     self.program_counter += OPCODE_SIZE;
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // VX = DT
-            // 0xFX07
-            (0xF, x, 0x0, 0x7) => {
-                self.registers[x as usize] = self.delay_timer;
-                // Increment PC
+            Instruction::LoadDelay(x) => {
+                self.registers[x] = self.delay_timer;
                 self.program_counter += OPCODE_SIZE;
             }
-            // WAIT KEY
-            // 0xFX0A
-            (0xF, x, 0x0, 0xA) => {
+            Instruction::WaitKeyPress(x) => {
                 // TODO: Is this right? Better to halt thread and wait for key press?
                 let mut pressed = false;
                 for (i, key) in self.keypad.iter().enumerate() {
                     if *key.checked_read()? {
-                        self.registers[x as usize] = i as u8;
+                        self.registers[x] = i as u8;
                         pressed = true;
                         break;
                     }
                 }
                 if pressed {
-                    // Increment PC
                     self.program_counter += OPCODE_SIZE;
                 }
             }
-            // DT = VX
-            // 0xFX15
-            (0xF, x, 0x1, 0x5) => {
-                self.delay_timer = self.registers[x as usize];
-                // Increment PC
+            Instruction::SetDelay(x) => {
+                self.delay_timer = self.registers[x];
                 self.program_counter += OPCODE_SIZE;
             }
-            // ST = VX
-            // 0xFX18
-            (0xF, x, 0x1, 0x8) => {
-                *self.sound_timer.checked_write()? = self.registers[x as usize];
-                // Increment PC
+            Instruction::SetSound(x) => {
+                *self.sound_timer.checked_write()? = self.registers[x];
                 self.program_counter += OPCODE_SIZE;
             }
-            // I += VX
-            // 0xFX1E
-            (0xF, x, 0x1, 0xE) => {
-                let vx = self.registers[x as usize];
+            Instruction::AddI(x) => {
+                let vx = self.registers[x];
                 self.index_register = self.index_register.wrapping_add(vx as u16);
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // I = FONT
-            // 0xFX29
-            (0xF, x, 0x2, 0x9) => {
-                let vx = self.registers[x as usize];
+            Instruction::LoadFont(x) => {
+                let vx = self.registers[x];
                 self.index_register = FONTSET_START_ADDRESS + (FONT_SIZE as u16) * (vx as u16);
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // BCD
-            // 0xFX33
-            (0xF, x, 0x3, 0x3) => {
-                let vx = self.registers[x as usize];
+            Instruction::StoreBCD(x) => {
+                let vx = self.registers[x];
                 self.memory[self.index_register as usize] = (vx / 100) % 10;
                 self.memory[self.index_register as usize + 1] = (vx / 10) % 10;
                 self.memory[self.index_register as usize + 2] = vx % 10;
-                // Increment PC
+
                 self.program_counter += OPCODE_SIZE;
             }
-            // STORE V0 - VX
-            // 0xFX55
-            (0xF, x, 0x5, 0x5) => {
-                for i in 0..=x as usize {
+            Instruction::StoreRegisters(x) => {
+                for i in 0..=x {
                     self.memory[self.index_register as usize + i] = self.registers[i];
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            // LOAD V0 - VX
-            // 0xFX65
-            (0xF, x, 0x6, 0x5) => {
-                for i in 0..=x as usize {
+            Instruction::LoadMemory(x) => {
+                for i in 0..=x {
                     self.registers[i] = self.memory[self.index_register as usize + i];
                 }
-                // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
-            (_, _, _, _) => return Err(Chip8Error::UnimplementedOpcode(op)),
         }
 
         Ok(())
@@ -404,7 +395,8 @@ impl Chip8 {
     // Fetch -> Decode -> Execute
     pub fn tick(&mut self) -> Result<(), Chip8Error> {
         let op = self.fetch()?;
-        self.execute(op)
+        let instruction = Self::decode(op)?;
+        self.execute(instruction)
     }
 
     pub fn tick_timers(&mut self) -> Result<(), Chip8Error> {
@@ -477,7 +469,7 @@ impl Chip8 {
                 tokio::spawn(async move { audio.run(status, sound_timer) })
             })
         };
-        // Main CPU loop
+        // CPU loop
         self.run_cpu(status.clone(), clk_freq, freq);
 
         // Wait for all threads
