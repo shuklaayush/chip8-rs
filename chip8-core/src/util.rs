@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[inline]
-pub(crate) fn run_loop_inner(
+fn run_loop_inner(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
     mut fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,

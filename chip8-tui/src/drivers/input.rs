@@ -11,23 +11,17 @@ const KEYMAP: [char; NUM_KEYS] = [
     'a', 's', 'd', 'f', // 7 8 9 E
     'z', 'x', 'c', 'v', // A 0 B F
 ];
+const FREQUENCY: u64 = 120;
 
-pub struct TerminalKeyboardInput {
-    input_freq: u64,
-}
-
-impl TerminalKeyboardInput {
-    pub fn new(input_freq: u64) -> Self {
-        Self { input_freq }
-    }
-}
+#[derive(Default)]
+pub struct TerminalKeyboardInput {}
 
 impl InputDriver for TerminalKeyboardInput {
     fn frequency(&self) -> u64 {
-        self.input_freq
+        FREQUENCY
     }
 
-    fn poll(&self) -> Result<Option<(usize, InputKind)>, Chip8Error> {
+    fn poll(&mut self) -> Result<Option<(usize, InputKind)>, Chip8Error> {
         let event = read().map_err(|e| Chip8Error::InputError(e.to_string()))?;
         if let Event::Key(KeyEvent {
             code,

@@ -11,8 +11,6 @@ pub struct CmdArgs {
     pub clk_freq: u64,
     #[arg(long, default_value_t = 60)]
     pub refresh_rate: u64,
-    #[arg(long = "input-frequency", default_value_t = 120)]
-    pub input_freq: u64,
     #[arg(long = "background-color", default_value_t = Color::Black)]
     pub bg_color: Color,
     #[arg(long = "foreground-color", default_value_t = Color::White)]

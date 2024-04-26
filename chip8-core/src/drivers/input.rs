@@ -16,7 +16,7 @@ pub enum InputKind {
 pub trait InputDriver: Send {
     fn frequency(&self) -> u64;
 
-    fn poll(&self) -> Result<Option<(usize, InputKind)>, Chip8Error>;
+    fn poll(&mut self) -> Result<Option<(usize, InputKind)>, Chip8Error>;
 
     fn run(
         &mut self,

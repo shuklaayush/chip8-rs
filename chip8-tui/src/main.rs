@@ -26,7 +26,7 @@ async fn main() {
         args.fg_color,
         args.border_color,
     );
-    let input = TerminalKeyboardInput::new(args.input_freq);
+    let input = TerminalKeyboardInput::default();
     let audio = TerminalAudio::default();
 
     let mut chip8 = Chip8::new();

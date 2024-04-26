@@ -21,7 +21,7 @@ pub struct Chip8 {
     stack: [u16; STACK_DEPTH],
     stack_pointer: u8,
     delay_timer: u8,
-    sound_timer: u8,
+    sound_timer: Arc<RwLock<u8>>,
     keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
     frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
 }
@@ -36,7 +36,7 @@ impl Default for Chip8 {
             stack: [0; STACK_DEPTH],
             stack_pointer: 0,
             delay_timer: 0,
-            sound_timer: 0,
+            sound_timer: Arc::new(RwLock::new(0)),
             keypad: Arc::new([false; NUM_KEYS].map(RwLock::new)),
             frame_buffer: Arc::new(RwLock::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT])),
         }
@@ -348,7 +348,7 @@ impl Chip8 {
             // ST = VX
             // 0xFX18
             (0xF, x, 0x1, 0x8) => {
-                self.sound_timer = self.registers[x as usize];
+                *self.sound_timer.checked_write()? = self.registers[x as usize];
                 // Increment PC
                 self.program_counter += OPCODE_SIZE;
             }
@@ -408,14 +408,13 @@ impl Chip8 {
         self.execute(op)
     }
 
-    pub fn tick_timers(&mut self, audio: &mut impl AudioDriver) -> Result<(), Chip8Error> {
+    pub fn tick_timers(&mut self) -> Result<(), Chip8Error> {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
         }
 
-        if self.sound_timer > 0 {
-            audio.beep()?;
-            self.sound_timer -= 1;
+        if *self.sound_timer.checked_read()? > 0 {
+            *self.sound_timer.checked_write()? -= 1;
         }
 
         Ok(())
@@ -425,7 +424,6 @@ impl Chip8 {
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         clk_freq: u64,
-        mut audio: impl AudioDriver,
         maybe_freq: Arc<RwLock<Option<f64>>>,
     ) {
         let ticks_per_timer = clk_freq / TIMER_FREQ;
@@ -435,7 +433,7 @@ impl Chip8 {
             self.tick()?;
 
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
-                self.tick_timers(&mut audio)?;
+                self.tick_timers()?;
             }
             *maybe_freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
             clk += 1;
@@ -449,7 +447,7 @@ impl Chip8 {
         clk_freq: u64,
         mut display: impl DisplayDriver + 'static,
         mut input: impl InputDriver + 'static,
-        audio: impl AudioDriver,
+        mut audio: impl AudioDriver + 'static,
     ) -> Result<(), Chip8Error> {
         // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
@@ -464,18 +462,27 @@ impl Chip8 {
         };
         // Render loop
         let render_handle = {
+            let status = status.clone();
             let frame_buffer = self.frame_buffer.clone();
             let maybe_freq = maybe_freq.clone();
-            let status = status.clone();
 
             tokio::spawn(async move { display.run(status, frame_buffer, maybe_freq) })
         };
-        // Main CPU loop
-        // TODO: Move audio to separate thread
-        self.run_cpu(status.clone(), clk_freq, audio, maybe_freq);
+        // Audio loop
+        let audio_handle = {
+            let status = status.clone();
+            let sound_timer = self.sound_timer.clone();
 
-        // Wait for input and rendering loop
+            tokio::spawn(async move { audio.run(status, sound_timer) })
+        };
+        // Main CPU loop
+        self.run_cpu(status.clone(), clk_freq, maybe_freq);
+
+        // Wait for all threads
         input_handle
+            .await
+            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        audio_handle
             .await
             .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
         render_handle
@@ -492,7 +499,7 @@ impl Chip8 {
         clk_freq: u64,
         display: impl DisplayDriver + 'static,
         input: impl InputDriver + 'static,
-        audio: impl AudioDriver,
+        audio: impl AudioDriver + 'static,
     ) -> Result<(), Chip8Error> {
         self.load(bytes)?;
         self.run(clk_freq, display, input, audio).await
