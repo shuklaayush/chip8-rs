@@ -35,13 +35,18 @@ impl Display for Chip8Error {
             Chip8Error::AudioError(str) => {
                 write!(f, "Audio Error: {str}")
             }
+            Chip8Error::AsyncAwaitError(str) => {
+                write!(f, "Async/Await Error: {str}")
+            }
             Chip8Error::MutexReadError(str) => {
                 write!(f, "Mutex read error: {str}")
             }
             Chip8Error::MutexWriteError(str) => {
                 write!(f, "Mutex write error: {str}")
             }
-            _ => Ok(()),
+            Chip8Error::Interrupt => {
+                write!(f, "Interrupted")
+            }
         }
     }
 }

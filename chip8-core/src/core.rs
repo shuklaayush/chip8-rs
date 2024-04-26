@@ -492,13 +492,13 @@ impl Chip8 {
 
     pub async fn load_and_run(
         &mut self,
-        bytes: &[u8],
+        rom: &[u8],
         clk_freq: u64,
         input: impl InputDriver + 'static,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
-        self.load(bytes)?;
+        self.load(rom)?;
         self.run(clk_freq, input, display, audio).await
     }
 }

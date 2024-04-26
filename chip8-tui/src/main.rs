@@ -14,8 +14,7 @@ use crate::drivers::{
     audio::TerminalAudio, display::TerminalDisplay, input::TerminalKeyboardInput,
 };
 
-#[tokio::main]
-async fn main() -> Result<(), TuiError> {
+async fn app() -> Result<(), TuiError> {
     let args = CmdArgs::parse();
 
     let rom = fs::read(args.rom).map_err(|e| TuiError::RomReadError(e.to_string()))?;
@@ -52,4 +51,12 @@ async fn main() -> Result<(), TuiError> {
 
     restore_terminal(args.headless).map_err(|e| TuiError::TerminalRestoreError(e.to_string()))?;
     res
+}
+
+#[tokio::main]
+async fn main() {
+    if let Err(e) = app().await {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
 }
