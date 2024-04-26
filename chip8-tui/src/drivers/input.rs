@@ -1,17 +1,33 @@
 use chip8_core::{
-    constants::NUM_KEYS,
     drivers::{InputDriver, InputKind},
     error::Chip8Error,
+    keypad::Key,
 };
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-const KEYMAP: [char; NUM_KEYS] = [
-    '1', '2', '3', '4', // 1 2 3 C
-    'q', 'w', 'e', 'r', // 4 5 6 D
-    'a', 's', 'd', 'f', // 7 8 9 E
-    'z', 'x', 'c', 'v', // A 0 B F
-];
 const FREQUENCY: u64 = 120;
+
+fn keymap(c: char) -> Option<Key> {
+    match c {
+        '1' => Some(Key::Key1),
+        '2' => Some(Key::Key2),
+        '3' => Some(Key::Key3),
+        '4' => Some(Key::KeyC),
+        'Q' => Some(Key::Key4),
+        'W' => Some(Key::Key5),
+        'E' => Some(Key::Key6),
+        'R' => Some(Key::KeyD),
+        'A' => Some(Key::Key7),
+        'S' => Some(Key::Key8),
+        'D' => Some(Key::Key9),
+        'F' => Some(Key::KeyA),
+        'Z' => Some(Key::KeyA),
+        'X' => Some(Key::Key0),
+        'C' => Some(Key::KeyB),
+        'V' => Some(Key::KeyF),
+        _ => None,
+    }
+}
 
 #[derive(Default)]
 pub struct TerminalKeyboardInput {}
@@ -21,7 +37,7 @@ impl InputDriver for TerminalKeyboardInput {
         FREQUENCY
     }
 
-    fn poll(&mut self) -> Result<Option<(usize, InputKind)>, Chip8Error> {
+    fn poll(&mut self) -> Result<Option<(Key, InputKind)>, Chip8Error> {
         let event = read().map_err(|e| Chip8Error::InputError(e.to_string()))?;
         if let Event::Key(KeyEvent {
             code,
@@ -41,8 +57,8 @@ impl InputDriver for TerminalKeyboardInput {
                     };
 
                     if let Some(kind) = kind {
-                        if let Some(idx) = KEYMAP.into_iter().position(|x| x == c) {
-                            return Ok(Some((idx, kind)));
+                        if let Some(key) = keymap(c.to_ascii_uppercase()) {
+                            return Ok(Some((key, kind)));
                         }
                     }
                 }
