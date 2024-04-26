@@ -1,3 +1,4 @@
+use chip8_core::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 use crossterm::{
     cursor::{Hide, Show},
     event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
@@ -6,15 +7,15 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 use std::io::{stdout, Error, Stdout};
-use chip8_core::constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
-pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, Error> {
-    enable_raw_mode().expect("Failed to enable raw mode");
+pub fn setup_terminal(headless: bool) -> Result<Terminal<CrosstermBackend<Stdout>>, Error> {
+    enable_raw_mode()?;
+    if !headless {
+        execute!(stdout(), EnterAlternateScreen, Hide)?;
+    }
     execute!(
         stdout(),
-        EnterAlternateScreen,
         PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_EVENT_TYPES),
-        Hide,
     )?;
 
     let backend = CrosstermBackend::new(stdout());
@@ -36,13 +37,10 @@ pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, Error> {
     Ok(terminal)
 }
 
-pub fn restore_terminal() {
-    execute!(
-        stdout(),
-        Show,
-        PopKeyboardEnhancementFlags,
-        LeaveAlternateScreen
-    )
-    .expect("Failed to execute terminal commands");
-    disable_raw_mode().expect("Failed to disable raw mode");
+pub fn restore_terminal(headless: bool) -> Result<(), Error> {
+    execute!(stdout(), PopKeyboardEnhancementFlags)?;
+    if !headless {
+        execute!(stdout(), Show, LeaveAlternateScreen)?;
+    }
+    disable_raw_mode()
 }

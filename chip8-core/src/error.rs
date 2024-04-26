@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 #[derive(Debug, Clone)]
 pub enum Chip8Error {
@@ -45,3 +45,5 @@ impl Display for Chip8Error {
         }
     }
 }
+
+impl Error for Chip8Error {}

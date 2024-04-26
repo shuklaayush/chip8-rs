@@ -1,10 +1,12 @@
 mod args;
 mod drivers;
+mod error;
 mod terminal;
 
 use args::CmdArgs;
-use chip8_core::{core::Chip8, error::Chip8Error};
+use chip8_core::core::Chip8;
 use clap::Parser;
+use error::TuiError;
 use std::fs;
 use terminal::{restore_terminal, setup_terminal};
 
@@ -13,11 +15,12 @@ use crate::drivers::{
 };
 
 #[tokio::main]
-async fn main() -> Result<(), Chip8Error> {
+async fn main() -> Result<(), TuiError> {
     let args = CmdArgs::parse();
 
-    let rom = fs::read(args.rom).expect("Unable to read {path}");
-    let terminal = setup_terminal().expect("Failed to setup terminal");
+    let rom = fs::read(args.rom).map_err(|e| TuiError::RomReadError(e.to_string()))?;
+    let terminal =
+        setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
 
     let input = TerminalKeyboardInput::default();
     let display = {
@@ -44,8 +47,9 @@ async fn main() -> Result<(), Chip8Error> {
     let mut chip8 = Chip8::new();
     let res = chip8
         .load_and_run(rom.as_slice(), args.clk_freq, input, display, audio)
-        .await;
+        .await
+        .map_err(TuiError::Chip8Error);
 
-    restore_terminal();
+    restore_terminal(args.headless).map_err(|e| TuiError::TerminalRestoreError(e.to_string()))?;
     res
 }
