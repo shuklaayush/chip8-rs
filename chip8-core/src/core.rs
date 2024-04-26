@@ -78,6 +78,7 @@ impl Chip8 {
         }
     }
 
+    // TODO: Separate decode and execute
     fn execute(&mut self, op: u16) -> Result<(), Chip8Error> {
         let nibbles = (
             (op & 0xF000) >> 12_u8,
@@ -469,6 +470,7 @@ impl Chip8 {
             tokio::spawn(async move { display.run(status, frame_buffer, maybe_freq) })
         };
         // Main CPU loop
+        // TODO: Move audio to separate thread
         self.run_cpu(status.clone(), clk_freq, audio, maybe_freq);
 
         // Wait for input and rendering loop

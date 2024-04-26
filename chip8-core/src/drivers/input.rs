@@ -25,6 +25,7 @@ pub trait InputDriver: Send {
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {
             if let Some((idx, kind)) = self.poll()? {
+                // TODO: Use some kind of queue to buffer inputs
                 *keypad[KEYMAP_HEX[idx]].checked_write()? = kind == InputKind::Press
             }
             Ok(())

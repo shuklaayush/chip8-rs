@@ -46,9 +46,9 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
             .join("\n");
 
         let block = Block::bordered().title(format!(
-            "{}{}",
-            cpu_freq.map_or("".to_string(), |f| format!("CPU: {f:.2}Hz")),
-            fps.map_or("".to_string(), |f| format!(" FPS: {f:.2}Hz"))
+            "CHIP-8 {}{}",
+            cpu_freq.map_or("".to_string(), |f| format!("{f:.2}Hz")),
+            fps.map_or("".to_string(), |f| format!(" {f:.2}FPS"))
         ));
         let area = Rect::new(
             0,
