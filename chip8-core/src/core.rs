@@ -78,7 +78,6 @@ impl Chip8 {
         }
     }
 
-    // TODO: Separate decode and execute
     fn execute(&mut self, op: u16) -> Result<(), Chip8Error> {
         let nibbles = (
             (op & 0xF000) >> 12_u8,
@@ -424,7 +423,7 @@ impl Chip8 {
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         clk_freq: u64,
-        maybe_freq: Arc<RwLock<Option<f64>>>,
+        freq: Arc<RwLock<Option<f64>>>,
     ) {
         let ticks_per_timer = clk_freq / TIMER_FREQ;
 
@@ -435,7 +434,7 @@ impl Chip8 {
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers()?;
             }
-            *maybe_freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
+            *freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
             clk += 1;
 
             Ok(())
@@ -445,13 +444,13 @@ impl Chip8 {
     pub async fn run(
         &mut self,
         clk_freq: u64,
-        mut display: impl DisplayDriver + 'static,
         mut input: impl InputDriver + 'static,
-        mut audio: impl AudioDriver + 'static,
+        display: Option<impl DisplayDriver + 'static>,
+        audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
         // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
-        let maybe_freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
+        let freq = Arc::new(RwLock::new(Some(clk_freq as f64)));
 
         // Input loop
         let input_handle = {
@@ -461,33 +460,40 @@ impl Chip8 {
             tokio::spawn(async move { input.run(status, keypad) })
         };
         // Render loop
-        let render_handle = {
-            let status = status.clone();
-            let frame_buffer = self.frame_buffer.clone();
-            let maybe_freq = maybe_freq.clone();
+        let display_handle = {
+            display.map(|mut display| {
+                let status = status.clone();
+                let frame_buffer = self.frame_buffer.clone();
+                let freq = freq.clone();
 
-            tokio::spawn(async move { display.run(status, frame_buffer, maybe_freq) })
+                tokio::spawn(async move { display.run(status, frame_buffer, freq) })
+            })
         };
         // Audio loop
         let audio_handle = {
-            let status = status.clone();
-            let sound_timer = self.sound_timer.clone();
-
-            tokio::spawn(async move { audio.run(status, sound_timer) })
+            audio.map(|mut audio| {
+                let status = status.clone();
+                let sound_timer = self.sound_timer.clone();
+                tokio::spawn(async move { audio.run(status, sound_timer) })
+            })
         };
         // Main CPU loop
-        self.run_cpu(status.clone(), clk_freq, maybe_freq);
+        self.run_cpu(status.clone(), clk_freq, freq);
 
         // Wait for all threads
         input_handle
             .await
             .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
-        audio_handle
-            .await
-            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
-        render_handle
-            .await
-            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        if let Some(display_handle) = display_handle {
+            display_handle
+                .await
+                .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        }
+        if let Some(audio_handle) = audio_handle {
+            audio_handle
+                .await
+                .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        }
 
         let res = status.checked_read()?;
         res.clone()
@@ -497,11 +503,11 @@ impl Chip8 {
         &mut self,
         bytes: &[u8],
         clk_freq: u64,
-        display: impl DisplayDriver + 'static,
         input: impl InputDriver + 'static,
-        audio: impl AudioDriver + 'static,
+        display: Option<impl DisplayDriver + 'static>,
+        audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
         self.load(bytes)?;
-        self.run(clk_freq, display, input, audio).await
+        self.run(clk_freq, input, display, audio).await
     }
 }

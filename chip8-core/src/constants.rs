@@ -20,6 +20,7 @@ pub const NUM_KEYS: usize = 16;
 // ╠═══╬═══╬═══╬═══╣
 // ║ A ║ 0 ║ B ║ F ║
 // ╚═══╩═══╩═══╩═══╝
+// TODO: Use enum for this
 pub const KEYMAP_HEX: [usize; NUM_KEYS] = [
     0x1, 0x2, 0x3, 0xC,
     0x4, 0x5, 0x6, 0xD,
