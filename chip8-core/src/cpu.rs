@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     constants::{
         DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET_START_ADDRESS, FONT_SIZE,
-        MEMORY_SIZE, OPCODE_SIZE, TIMER_FREQ,
+        OPCODE_SIZE, TIMER_FREQ,
     },
     error::Chip8Error,
     instructions::Instruction,
@@ -26,13 +26,19 @@ impl Cpu {
         self.clk_freq
     }
 
-    fn fetch(&mut self, state: &Chip8State) -> Result<u16, Chip8Error> {
+    fn fetch(&mut self, state: &mut Chip8State) -> Result<u16, Chip8Error> {
         let pc = state.program_counter as usize;
-        if pc + 1 > MEMORY_SIZE {
-            Err(Chip8Error::ProgramCounterOverflow(state.program_counter))
-        } else {
-            Ok(u16::from_be_bytes([state.memory[pc], state.memory[pc + 1]]))
-        }
+        let hi = *state
+            .memory
+            .get(pc)
+            .ok_or(Chip8Error::MemoryOutOfBounds(state.program_counter))?;
+        let lo = *state
+            .memory
+            .get(pc + 1)
+            .ok_or(Chip8Error::MemoryOutOfBounds(state.program_counter + 1))?;
+
+        state.increment_pc();
+        Ok(u16::from_be_bytes([hi, lo]))
     }
 
     fn decode(opcode: u16) -> Result<Instruction, Chip8Error> {
@@ -144,106 +150,79 @@ impl Cpu {
             Instruction::ClearDisplay => {
                 let mut frame_buffer = state.frame_buffer.checked_write()?;
                 *frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Return => {
-                state.stack_pointer -= 1;
-                state.program_counter = state.stack[state.stack_pointer as usize];
+                state.pop_stack();
             }
             Instruction::Jump(nnn) => {
                 state.program_counter = nnn;
             }
             Instruction::Call(nnn) => {
-                state.stack[state.stack_pointer as usize] = state.program_counter + OPCODE_SIZE;
-                state.stack_pointer += 1;
-                state.program_counter = nnn;
+                state.push_stack(nnn);
             }
             Instruction::SkipEqual(x, nn) => {
                 if state.registers[x] == nn {
                     state.program_counter += OPCODE_SIZE;
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SkipNotEqual(x, nn) => {
                 if state.registers[x] != nn {
                     state.program_counter += OPCODE_SIZE;
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SkipEqualXY(x, y) => {
                 if state.registers[x] == state.registers[y] {
                     state.program_counter += OPCODE_SIZE;
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Load(x, nn) => {
                 state.registers[x] = nn;
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Add(x, nn) => {
                 state.registers[x] = state.registers[x].wrapping_add(nn);
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Move(x, y) => {
                 state.registers[x] = state.registers[y];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Or(x, y) => {
                 state.registers[x] |= state.registers[y];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::And(x, y) => {
                 state.registers[x] &= state.registers[y];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Xor(x, y) => {
                 state.registers[x] ^= state.registers[y];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::AddXY(x, y) => {
                 let (sum, carry) = state.registers[x].overflowing_add(state.registers[y]);
                 state.registers[x] = sum;
                 state.registers[FLAG_REGISTER] = carry as u8;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SubXY(x, y) => {
                 let (diff, borrow) = state.registers[x].overflowing_sub(state.registers[y]);
                 state.registers[x] = diff;
                 state.registers[FLAG_REGISTER] = !borrow as u8;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::ShiftRight(x) => {
                 state.registers[x] >>= 1;
                 state.registers[FLAG_REGISTER] = state.registers[x] & 1;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SubYX(x, y) => {
                 let (diff, borrow) = state.registers[y].overflowing_sub(state.registers[x]);
                 state.registers[x] = diff;
                 state.registers[FLAG_REGISTER] = !borrow as u8;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::ShiftLeft(x) => {
                 state.registers[x] <<= 1;
                 state.registers[FLAG_REGISTER] = (state.registers[x] >> 7) & 1;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SkipNotEqualXY(x, y) => {
                 if state.registers[x] != state.registers[y] {
                     state.program_counter += OPCODE_SIZE;
                 }
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::LoadI(nnn) => {
                 state.index_register = nnn;
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::JumpV0(nnn) => {
                 state.program_counter = (state.registers[0] as u16) + nnn;
@@ -252,8 +231,6 @@ impl Cpu {
                 // TODO: See if random is portable/wasm-friendly
                 let r: u8 = random();
                 state.registers[x] = r & nn;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::Draw(x, y, n) => {
                 let x0 = state.registers[x] as usize % DISPLAY_WIDTH;
@@ -271,26 +248,21 @@ impl Cpu {
                     }
                 }
                 state.registers[FLAG_REGISTER] = flipped as u8;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SkipKeyPressed(x) => {
                 let vx = state.registers[x];
                 if *state.keypad[vx as usize].checked_read()? {
                     state.program_counter += OPCODE_SIZE;
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SkipKeyNotPressed(x) => {
                 let vx = state.registers[x];
                 if !*state.keypad[vx as usize].checked_read()? {
                     state.program_counter += OPCODE_SIZE;
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::LoadDelay(x) => {
                 state.registers[x] = state.delay_timer;
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::WaitKeyPress(x) => {
                 // TODO: Is this right? Better to halt thread and wait for key press?
@@ -302,49 +274,39 @@ impl Cpu {
                         break;
                     }
                 }
-                if pressed {
-                    state.program_counter += OPCODE_SIZE;
+                if !pressed {
+                    state.program_counter -= OPCODE_SIZE;
                 }
             }
             Instruction::SetDelay(x) => {
                 state.delay_timer = state.registers[x];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::SetSound(x) => {
                 *state.sound_timer.checked_write()? = state.registers[x];
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::AddI(x) => {
                 let vx = state.registers[x];
                 state.index_register = state.index_register.wrapping_add(vx as u16);
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::LoadFont(x) => {
                 let vx = state.registers[x];
                 state.index_register = FONTSET_START_ADDRESS + (FONT_SIZE as u16) * (vx as u16);
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::StoreBCD(x) => {
                 let vx = state.registers[x];
                 state.memory[state.index_register as usize] = (vx / 100) % 10;
                 state.memory[state.index_register as usize + 1] = (vx / 10) % 10;
                 state.memory[state.index_register as usize + 2] = vx % 10;
-
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::StoreRegisters(x) => {
                 for i in 0..=x {
                     state.memory[state.index_register as usize + i] = state.registers[i];
                 }
-                state.program_counter += OPCODE_SIZE;
             }
             Instruction::LoadMemory(x) => {
                 for i in 0..=x {
                     state.registers[i] = state.memory[state.index_register as usize + i];
                 }
-                state.program_counter += OPCODE_SIZE;
             }
         }
 

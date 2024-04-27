@@ -1,4 +1,5 @@
-type Address = u16;
+use crate::state::{Address, Word};
+
 type Register = usize;
 
 #[derive(Debug)]
@@ -7,11 +8,11 @@ pub enum Instruction {
     Return,
     Jump(Address),
     Call(Address),
-    SkipEqual(Register, u8),
-    SkipNotEqual(Register, u8),
+    SkipEqual(Register, Word),
+    SkipNotEqual(Register, Word),
     SkipEqualXY(Register, Register),
-    Load(Register, u8),
-    Add(Register, u8),
+    Load(Register, Word),
+    Add(Register, Word),
 
     Move(Register, Register),
     Or(Register, Register),
@@ -26,8 +27,8 @@ pub enum Instruction {
     SkipNotEqualXY(Register, Register),
     LoadI(Address),
     JumpV0(Address),
-    Random(Register, u8),
-    Draw(Register, Register, u8),
+    Random(Register, Word),
+    Draw(Register, Register, Word),
 
     SkipKeyPressed(Register),
     SkipKeyNotPressed(Register),

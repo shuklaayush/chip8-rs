@@ -1,8 +1,10 @@
 use std::{error::Error, fmt::Display};
 
+use crate::state::Address;
+
 #[derive(Debug, Clone)]
 pub enum Chip8Error {
-    ProgramCounterOverflow(u16),
+    MemoryOutOfBounds(Address),
     UnimplementedOpcode(u16),
     RomTooBig(usize),
     DisplayError(String),
@@ -20,8 +22,8 @@ impl Display for Chip8Error {
             Chip8Error::RomTooBig(size) => {
                 write!(f, "ROM size too big: {size}bytes")
             }
-            Chip8Error::ProgramCounterOverflow(pc) => {
-                write!(f, "Program counter overflow: 0x{:04X}", pc)
+            Chip8Error::MemoryOutOfBounds(pc) => {
+                write!(f, "Memory access out of bounds: 0x{:04X}", pc)
             }
             Chip8Error::UnimplementedOpcode(op) => {
                 write!(f, "Unimplemented opcode: 0x{:04X}", op)
