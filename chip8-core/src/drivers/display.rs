@@ -13,8 +13,8 @@ pub trait DisplayDriver: Send {
     fn draw(
         &mut self,
         frame_buffer: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
-        cpu_freq: Option<f64>,
-        fps: Option<f64>,
+        cpu_freq: Option<u64>,
+        fps: Option<u64>,
     ) -> Result<(), Chip8Error>;
 
     fn run(
@@ -28,7 +28,9 @@ pub trait DisplayDriver: Send {
             // TODO: Put behind feature flag
             let curr_clk = *clk.checked_read()?;
             let freq = (curr_clk - prev_clk) as f64 / elapsed.as_secs_f64();
+            let freq = freq.round() as u64;
             let fps = 1.0 / elapsed.as_secs_f64();
+            let fps = fps.round() as u64;
 
             self.draw(*frame_buffer.checked_read()?, Some(freq), Some(fps))?;
             prev_clk = curr_clk;
