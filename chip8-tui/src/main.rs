@@ -4,7 +4,7 @@ mod error;
 mod terminal;
 
 use args::CmdArgs;
-use chip8_core::core::Chip8;
+use chip8_core::Chip8;
 use clap::Parser;
 use error::TuiError;
 use std::fs;
@@ -43,9 +43,9 @@ async fn app() -> Result<(), TuiError> {
         }
     };
 
-    let mut chip8 = Chip8::new();
+    let mut chip8 = Chip8::new(args.clk_freq);
     let res = chip8
-        .load_and_run(rom.as_slice(), args.clk_freq, input, display, audio)
+        .load_and_run(rom.as_slice(), input, display, audio)
         .await
         .map_err(TuiError::Chip8Error);
 
