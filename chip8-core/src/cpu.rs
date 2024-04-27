@@ -375,15 +375,14 @@ impl Cpu {
     ) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
-        let mut clk = 0;
         run_loop(status, self.frequency(), move |elapsed| {
             self.tick(state)?;
 
-            if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
+            if ticks_per_timer == 0 || state.clk % ticks_per_timer == 0 {
                 self.tick_timers(state)?;
             }
             *freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
-            clk += 1;
+            state.clk += 1;
 
             Ok(())
         })

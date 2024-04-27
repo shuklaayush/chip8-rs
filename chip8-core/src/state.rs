@@ -15,6 +15,8 @@ pub struct Chip8State {
     pub sound_timer: Arc<RwLock<u8>>,
     pub keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
     pub frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
+    /// Cycle counter to keep track of the number of CPU cycles executed.
+    pub clk: u64,
 }
 
 impl Default for Chip8State {
@@ -30,6 +32,7 @@ impl Default for Chip8State {
             sound_timer: Arc::new(RwLock::new(0)),
             keypad: Arc::new([false; NUM_KEYS].map(RwLock::new)),
             frame_buffer: Arc::new(RwLock::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT])),
+            clk: 0,
         }
     }
 }
