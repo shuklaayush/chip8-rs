@@ -4,7 +4,7 @@ use crate::state::Address;
 
 #[derive(Debug, Clone)]
 pub enum Chip8Error {
-    MemoryOutOfBounds(Address),
+    MemoryAccessOutOfBounds(Address),
     UnimplementedOpcode(u16),
     RomTooBig(usize),
     DisplayError(String),
@@ -22,7 +22,7 @@ impl Display for Chip8Error {
             Chip8Error::RomTooBig(size) => {
                 write!(f, "ROM size too big: {size}bytes")
             }
-            Chip8Error::MemoryOutOfBounds(pc) => {
+            Chip8Error::MemoryAccessOutOfBounds(pc) => {
                 write!(f, "Memory access out of bounds: 0x{:04X}", pc)
             }
             Chip8Error::UnimplementedOpcode(op) => {

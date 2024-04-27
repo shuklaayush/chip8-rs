@@ -21,17 +21,19 @@ pub trait DisplayDriver: Send {
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
-        cpu_freq: Arc<RwLock<Option<f64>>>,
+        clk: Arc<RwLock<u64>>,
     ) {
+        let mut prev_clk = 0;
         run_loop(status.clone(), self.frequency(), move |elapsed| {
             // TODO: Put behind feature flag
+            let curr_clk = *clk.checked_read()?;
+            let freq = (curr_clk - prev_clk) as f64 / elapsed.as_secs_f64();
             let fps = 1.0 / elapsed.as_secs_f64();
 
-            self.draw(
-                *frame_buffer.checked_read()?,
-                *cpu_freq.checked_read()?,
-                Some(fps),
-            )
+            self.draw(*frame_buffer.checked_read()?, Some(freq), Some(fps))?;
+            prev_clk = curr_clk;
+
+            Ok(())
         });
     }
 }

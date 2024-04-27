@@ -1,10 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    constants::{
-        FONTSET, FONTSET_START_ADDRESS,
-        MEMORY_SIZE, PROGRAM_START_ADDRESS,
-    },
+    constants::{FONTSET, FONTSET_START_ADDRESS, MEMORY_SIZE, PROGRAM_START_ADDRESS},
     cpu::Cpu,
     drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
@@ -54,7 +51,6 @@ impl Chip8 {
     ) -> Result<(), Chip8Error> {
         // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
-        let freq = Arc::new(RwLock::new(Some(self.cpu.frequency() as f64)));
 
         // Input loop
         let input_handle = {
@@ -68,9 +64,9 @@ impl Chip8 {
             display.map(|mut display| {
                 let status = status.clone();
                 let frame_buffer = self.state.frame_buffer.clone();
-                let freq = freq.clone();
+                let clk = self.state.clk.clone();
 
-                tokio::spawn(async move { display.run(status, frame_buffer, freq) })
+                tokio::spawn(async move { display.run(status, frame_buffer, clk) })
             })
         };
         // Audio loop
@@ -82,7 +78,7 @@ impl Chip8 {
             })
         };
         // CPU loop
-        self.cpu.run(&mut self.state, status.clone(), freq);
+        self.cpu.run(status.clone(), &mut self.state);
 
         // Wait for all threads
         input_handle

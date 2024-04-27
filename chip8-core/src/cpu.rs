@@ -31,11 +31,13 @@ impl Cpu {
         let hi = *state
             .memory
             .get(pc)
-            .ok_or(Chip8Error::MemoryOutOfBounds(state.program_counter))?;
+            .ok_or(Chip8Error::MemoryAccessOutOfBounds(state.program_counter))?;
         let lo = *state
             .memory
             .get(pc + 1)
-            .ok_or(Chip8Error::MemoryOutOfBounds(state.program_counter + 1))?;
+            .ok_or(Chip8Error::MemoryAccessOutOfBounds(
+                state.program_counter + 1,
+            ))?;
 
         state.increment_pc();
         Ok(u16::from_be_bytes([hi, lo]))
@@ -265,17 +267,15 @@ impl Cpu {
                 state.registers[x] = state.delay_timer;
             }
             Instruction::WaitKeyPress(x) => {
-                // TODO: Is this right? Better to halt thread and wait for key press?
                 let mut pressed = false;
-                for (i, key) in state.keypad.iter().enumerate() {
-                    if *key.checked_read()? {
-                        state.registers[x] = i as u8;
-                        pressed = true;
-                        break;
+                while !pressed {
+                    for (i, key) in state.keypad.iter().enumerate() {
+                        if *key.checked_read()? {
+                            state.registers[x] = i as u8;
+                            pressed = true;
+                            break;
+                        }
                     }
-                }
-                if !pressed {
-                    state.program_counter -= OPCODE_SIZE;
                 }
             }
             Instruction::SetDelay(x) => {
@@ -329,23 +329,18 @@ impl Cpu {
         Ok(())
     }
 
-    pub fn run(
-        &mut self,
-        state: &mut Chip8State,
-        status: Arc<RwLock<Result<(), Chip8Error>>>,
-        freq: Arc<RwLock<Option<f64>>>,
-    ) {
+    pub fn run(&mut self, status: Arc<RwLock<Result<(), Chip8Error>>>, state: &mut Chip8State) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
-        run_loop(status, self.frequency(), move |elapsed| {
+        run_loop(status, self.frequency(), move |_| {
             self.tick(state)?;
 
-            if ticks_per_timer == 0 || state.clk % ticks_per_timer == 0 {
+            let clk = *state.clk.checked_read()?;
+            if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers(state)?;
             }
-            *freq.checked_write()? = Some(1.0 / elapsed.as_secs_f64());
-            state.clk += 1;
 
+            *state.clk.checked_write()? = clk + 1;
             Ok(())
         })
     }
