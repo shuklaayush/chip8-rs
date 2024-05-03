@@ -7,7 +7,7 @@ use crate::{
     error::Chip8Error,
     input::{InputEvent, InputQueue},
     rwlock::{CheckedRead, CheckedWrite},
-    util::run_loop,
+    util::run_loop_at_freq,
 };
 
 pub trait InputDriver: Send {
@@ -25,7 +25,7 @@ pub trait InputDriver: Send {
         queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
         clk: Arc<RwLock<u64>>,
     ) {
-        run_loop(status.clone(), self.frequency(), move |_| {
+        run_loop_at_freq(status.clone(), self.frequency(), move |_| {
             if let Some(event) = self.poll()? {
                 let clk = *clk.checked_read()?;
                 self.log_input(clk, event)?;

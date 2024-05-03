@@ -14,7 +14,7 @@ use crate::{
     instructions::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
     state::Chip8State,
-    util::run_loop,
+    util::run_loop_at_freq,
 };
 
 pub struct Cpu<R: Rng> {
@@ -350,7 +350,7 @@ impl<R: Rng> Cpu<R> {
     ) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
-        run_loop(status, self.frequency(), move |_| {
+        run_loop_at_freq(status, self.frequency(), move |_| {
             let clk = *state.clk.checked_read()?;
 
             while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {

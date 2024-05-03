@@ -11,7 +11,7 @@ use chip8_core::{
 };
 use clap::Parser;
 use csv::{Reader, Writer};
-use drivers::input::CsvRecord;
+use drivers::{input::CsvRecord, interrupt::TerminalKeyboardInterrupt};
 use error::TuiError;
 use rand::{random, rngs::StdRng, SeedableRng};
 use std::fs;
@@ -32,6 +32,7 @@ async fn app() -> Result<(), TuiError> {
         .output_file
         .map(|f| Writer::from_path(f).expect("Failed to create or open file"));
 
+    let interrupt_driver = TerminalKeyboardInterrupt::default();
     let input_driver = match args.input_file {
         Some(_) => None,
         None => Some(TerminalKeyboardInput::new(output)),
@@ -77,7 +78,13 @@ async fn app() -> Result<(), TuiError> {
     let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
     let mut chip8 = Chip8::new(args.clk_freq, seeded_rng, inputs);
     let res = chip8
-        .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
+        .load_and_run(
+            rom.as_slice(),
+            interrupt_driver,
+            input_driver,
+            display_driver,
+            audio_driver,
+        )
         .await
         .map_err(TuiError::Chip8Error);
 

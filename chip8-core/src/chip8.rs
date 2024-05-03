@@ -7,7 +7,7 @@ use std::{
 use crate::{
     constants::{FONTSET, FONTSET_START_ADDRESS, MEMORY_SIZE, PROGRAM_START_ADDRESS},
     cpu::Cpu,
-    drivers::{AudioDriver, DisplayDriver, InputDriver},
+    drivers::{AudioDriver, DisplayDriver, InputDriver, InterruptDriver},
     error::Chip8Error,
     input::InputEvent,
     rwlock::CheckedRead,
@@ -52,6 +52,7 @@ impl<R: Rng> Chip8<R> {
 
     pub async fn run(
         &mut self,
+        mut interrupt: impl InterruptDriver + 'static,
         input: Option<impl InputDriver + 'static>,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
@@ -59,6 +60,12 @@ impl<R: Rng> Chip8<R> {
         // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
 
+        // Interrupt loop
+        let interrupt_handle = {
+            let status = status.clone();
+
+            tokio::spawn(async move { interrupt.run(status) })
+        };
         // Input loop
         let input_handle = {
             input.map(|mut input| {
@@ -93,6 +100,9 @@ impl<R: Rng> Chip8<R> {
             .run(status.clone(), &mut self.state, self.input_queue.clone());
 
         // Wait for all threads
+        interrupt_handle
+            .await
+            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
         if let Some(input_handle) = input_handle {
             input_handle
                 .await
@@ -116,11 +126,12 @@ impl<R: Rng> Chip8<R> {
     pub async fn load_and_run(
         &mut self,
         rom: &[u8],
+        interrupt: impl InterruptDriver + 'static,
         input: Option<impl InputDriver + 'static>,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
         self.load(rom)?;
-        self.run(input, display, audio).await
+        self.run(interrupt, input, display, audio).await
     }
 }
