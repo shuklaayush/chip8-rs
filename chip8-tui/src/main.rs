@@ -4,11 +4,17 @@ mod error;
 mod terminal;
 
 use args::CmdArgs;
-use chip8_core::Chip8;
+use chip8_core::{
+    input::{InputEvent, InputKind},
+    keypad::Key,
+    Chip8,
+};
 use clap::Parser;
+use csv::{Reader, Writer};
+use drivers::input::CsvRecord;
 use error::TuiError;
 use rand::{random, rngs::StdRng, SeedableRng};
-use std::fs::{self, OpenOptions};
+use std::fs;
 use terminal::{restore_terminal, setup_terminal};
 
 use crate::drivers::{
@@ -22,16 +28,15 @@ async fn app() -> Result<(), TuiError> {
     let terminal =
         setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
 
-    let output_file = args.output_file.map(|f| {
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(f)
-            .expect("Failed to create or open file")
-    });
+    let output = args
+        .output_file
+        .map(|f| Writer::from_path(f).expect("Failed to create or open file"));
 
-    let input = TerminalKeyboardInput::new(output_file);
-    let display = {
+    let input_driver = match args.input_file {
+        Some(_) => None,
+        None => Some(TerminalKeyboardInput::new(output)),
+    };
+    let display_driver = {
         if !args.headless {
             Some(TerminalDisplay::new(
                 terminal,
@@ -44,7 +49,7 @@ async fn app() -> Result<(), TuiError> {
             None
         }
     };
-    let audio = {
+    let audio_driver = {
         if !args.headless {
             Some(TerminalAudio::default())
         } else {
@@ -52,10 +57,27 @@ async fn app() -> Result<(), TuiError> {
         }
     };
 
+    let inputs = if let Some(input_file) = args.input_file {
+        let mut reader = Reader::from_path(input_file).expect("Failed to open file");
+
+        let mut parsed = vec![];
+        for record in reader.deserialize() {
+            let record: CsvRecord = record.map_err(|e| TuiError::InputError(e.to_string()))?;
+            let key = Key::try_from(record.key).map_err(|e| TuiError::InputError(e.to_string()))?;
+            let kind = InputKind::try_from(record.kind)
+                .map_err(|e| TuiError::InputError(e.to_string()))?;
+            let event = InputEvent { key, kind };
+            parsed.push((record.clk, event))
+        }
+        Some(parsed)
+    } else {
+        None
+    };
+
     let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
-    let mut chip8 = Chip8::new(args.clk_freq, seeded_rng);
+    let mut chip8 = Chip8::new(args.clk_freq, seeded_rng, inputs);
     let res = chip8
-        .load_and_run(rom.as_slice(), input, display, audio)
+        .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
         .await
         .map_err(TuiError::Chip8Error);
 

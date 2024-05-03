@@ -1,5 +1,3 @@
-use std::{fs::File, io::Write};
-
 use chip8_core::{
     drivers::InputDriver,
     error::Chip8Error,
@@ -7,6 +5,9 @@ use chip8_core::{
     keypad::Key,
 };
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use csv::Writer;
+use serde::{Deserialize, Serialize};
+use std::io::Write;
 
 const FREQUENCY: u64 = 120;
 
@@ -32,25 +33,38 @@ fn keymap(c: char) -> Option<Key> {
     }
 }
 
-#[derive(Default)]
-pub struct TerminalKeyboardInput {
-    output_file: Option<File>,
+#[derive(Serialize, Deserialize)]
+pub struct CsvRecord {
+    pub clk: u64,
+    pub key: char,
+    pub kind: u8,
 }
 
-impl TerminalKeyboardInput {
-    pub fn new(output_file: Option<File>) -> Self {
-        Self { output_file }
+#[derive(Default)]
+pub struct TerminalKeyboardInput<W: Write> {
+    output: Option<Writer<W>>,
+}
+
+impl<W: Write> TerminalKeyboardInput<W> {
+    pub fn new(output: Option<Writer<W>>) -> Self {
+        Self { output }
     }
 }
 
-impl InputDriver for TerminalKeyboardInput {
+impl<W: Write + Send> InputDriver for TerminalKeyboardInput<W> {
     fn frequency(&self) -> u64 {
         FREQUENCY
     }
 
     fn log_input(&mut self, clk: u64, input: InputEvent) -> Result<(), Chip8Error> {
-        if let Some(output_file) = &mut self.output_file {
-            writeln!(output_file, "{clk},{},{}", input.key, input.kind as u8)
+        if let Some(output) = &mut self.output {
+            let record = CsvRecord {
+                clk,
+                key: char::from(input.key),
+                kind: input.kind as u8,
+            };
+            output
+                .serialize(record)
                 .map_err(|e| Chip8Error::InputError(e.to_string()))
         } else {
             Ok(())

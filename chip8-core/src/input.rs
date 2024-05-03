@@ -1,14 +1,26 @@
 use std::collections::VecDeque;
 
-use crate::keypad::Key;
+use crate::{error::Chip8Error, keypad::Key};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputKind {
     Release,
     Press,
 }
 
-#[derive(Clone, Copy)]
+impl TryFrom<u8> for InputKind {
+    type Error = Chip8Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Release),
+            1 => Ok(Self::Press),
+            _ => Err(Chip8Error::InputError("Unsupported input kind".to_string())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct InputEvent {
     pub key: Key,
     pub kind: InputKind,
@@ -19,15 +31,15 @@ pub trait InputQueue {
     fn dequeue(&mut self, current_clk: u64) -> Option<InputEvent>;
 }
 
-impl InputQueue for VecDeque<(InputEvent, u64)> {
+impl InputQueue for VecDeque<(u64, InputEvent)> {
     fn enqueue(&mut self, clk: u64, event: InputEvent) {
-        self.push_back((event, clk));
+        self.push_back((clk, event));
     }
 
     fn dequeue(&mut self, current_clk: u64) -> Option<InputEvent> {
-        if let Some((_, clk)) = self.front() {
+        if let Some((clk, _)) = self.front() {
             if *clk <= current_clk {
-                let (event, _) = self.pop_front().unwrap();
+                let (_, event) = self.pop_front().unwrap();
                 Some(event)
             } else {
                 None

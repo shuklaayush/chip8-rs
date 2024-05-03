@@ -17,11 +17,11 @@ use crate::{
 pub struct Chip8<R: Rng> {
     state: Chip8State,
     cpu: Cpu<R>,
-    input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+    input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
 }
 
 impl<R: Rng> Chip8<R> {
-    pub fn new(cpu_freq: u64, rng: R) -> Self {
+    pub fn new(cpu_freq: u64, rng: R, inputs: Option<Vec<(u64, InputEvent)>>) -> Self {
         let mut state = Chip8State {
             program_counter: PROGRAM_START_ADDRESS,
             ..Default::default()
@@ -34,7 +34,7 @@ impl<R: Rng> Chip8<R> {
         Self {
             state,
             cpu: Cpu::new(cpu_freq, rng),
-            input_queue: Arc::new(RwLock::new(VecDeque::new())),
+            input_queue: Arc::new(RwLock::new(VecDeque::from(inputs.unwrap_or_default()))),
         }
     }
 
@@ -52,7 +52,7 @@ impl<R: Rng> Chip8<R> {
 
     pub async fn run(
         &mut self,
-        mut input: impl InputDriver + 'static,
+        input: Option<impl InputDriver + 'static>,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
@@ -61,11 +61,13 @@ impl<R: Rng> Chip8<R> {
 
         // Input loop
         let input_handle = {
-            let status = status.clone();
-            let queue = self.input_queue.clone();
-            let clk = self.state.clk.clone();
+            input.map(|mut input| {
+                let status = status.clone();
+                let queue = self.input_queue.clone();
+                let clk = self.state.clk.clone();
 
-            tokio::spawn(async move { input.run(status, queue, clk) })
+                tokio::spawn(async move { input.run(status, queue, clk) })
+            })
         };
         // Render loop
         let display_handle = {
@@ -91,9 +93,11 @@ impl<R: Rng> Chip8<R> {
             .run(status.clone(), &mut self.state, self.input_queue.clone());
 
         // Wait for all threads
-        input_handle
-            .await
-            .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        if let Some(input_handle) = input_handle {
+            input_handle
+                .await
+                .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
+        }
         if let Some(display_handle) = display_handle {
             display_handle
                 .await
@@ -112,7 +116,7 @@ impl<R: Rng> Chip8<R> {
     pub async fn load_and_run(
         &mut self,
         rom: &[u8],
-        input: impl InputDriver + 'static,
+        input: Option<impl InputDriver + 'static>,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {

@@ -42,5 +42,7 @@ pub fn restore_terminal(headless: bool) -> Result<(), Error> {
     if !headless {
         execute!(stdout(), Show, LeaveAlternateScreen)?;
     }
-    disable_raw_mode()
+    disable_raw_mode()?;
+
+    Ok(())
 }

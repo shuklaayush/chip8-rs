@@ -9,6 +9,7 @@ pub enum TuiError {
     TerminalSetupError(String),
     TerminalRestoreError(String),
     Chip8Error(Chip8Error),
+    InputError(String),
 }
 
 impl Display for TuiError {
@@ -24,6 +25,9 @@ impl Display for TuiError {
                 write!(f, "Unable to restore terminal: {str}")
             }
             TuiError::Chip8Error(e) => {
+                write!(f, "{e}")
+            }
+            TuiError::InputError(e) => {
                 write!(f, "{e}")
             }
         }

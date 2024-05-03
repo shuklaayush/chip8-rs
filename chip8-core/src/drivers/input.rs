@@ -22,7 +22,7 @@ pub trait InputDriver: Send {
     fn run(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+        queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
         clk: Arc<RwLock<u64>>,
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {

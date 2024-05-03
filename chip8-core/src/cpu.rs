@@ -151,7 +151,7 @@ impl<R: Rng> Cpu<R> {
         &mut self,
         instruction: Instruction,
         state: &mut Chip8State,
-        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+        input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         match instruction {
             Instruction::ClearDisplay => {
@@ -270,15 +270,22 @@ impl<R: Rng> Cpu<R> {
             Instruction::LoadDelay(x) => {
                 state.registers[x] = state.delay_timer;
             }
-            Instruction::WaitKeyPress(x) => loop {
-                if let Some(event) =
-                    (*input_queue.checked_write()?).dequeue(*state.clk.checked_read()?)
-                {
-                    state.keypad[event.key as usize] = event.kind == InputKind::Press;
-                    state.registers[x] = event.key as u8;
-                    break;
+            Instruction::WaitKeyPress(x) => {
+                let clk = *state.clk.checked_read()?;
+                let mut pressed = false;
+                while !pressed {
+                    for (i, &key) in state.keypad.iter().enumerate() {
+                        if key {
+                            state.registers[x] = i as u8;
+                            pressed = true;
+                            break;
+                        }
+                    }
+                    while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
+                        state.keypad[event.key as usize] = event.kind == InputKind::Press;
+                    }
                 }
-            },
+            }
             Instruction::SetDelay(x) => {
                 state.delay_timer = state.registers[x];
             }
@@ -317,7 +324,7 @@ impl<R: Rng> Cpu<R> {
     pub fn tick(
         &mut self,
         state: &mut Chip8State,
-        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+        input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         let op = self.fetch(state)?;
         let instruction = Self::decode(op)?;
@@ -339,7 +346,7 @@ impl<R: Rng> Cpu<R> {
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
         state: &mut Chip8State,
-        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+        input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
