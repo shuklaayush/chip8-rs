@@ -8,7 +8,7 @@ use chip8_core::Chip8;
 use clap::Parser;
 use error::TuiError;
 use rand::{random, rngs::StdRng, SeedableRng};
-use std::fs;
+use std::fs::{self, OpenOptions};
 use terminal::{restore_terminal, setup_terminal};
 
 use crate::drivers::{
@@ -22,7 +22,15 @@ async fn app() -> Result<(), TuiError> {
     let terminal =
         setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
 
-    let input = TerminalKeyboardInput::default();
+    let output_file = args.output_file.map(|f| {
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(f)
+            .expect("Failed to create or open file")
+    });
+
+    let input = TerminalKeyboardInput::new(output_file);
     let display = {
         if !args.headless {
             Some(TerminalDisplay::new(

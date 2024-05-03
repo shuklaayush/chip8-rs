@@ -4,8 +4,8 @@ use crate::keypad::Key;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum InputKind {
-    Press,
     Release,
+    Press,
 }
 
 #[derive(Clone, Copy)]
@@ -15,12 +15,12 @@ pub struct InputEvent {
 }
 
 pub trait InputQueue {
-    fn enqueue(&mut self, event: InputEvent, clk: u64);
+    fn enqueue(&mut self, clk: u64, event: InputEvent);
     fn dequeue(&mut self, current_clk: u64) -> Option<InputEvent>;
 }
 
 impl InputQueue for VecDeque<(InputEvent, u64)> {
-    fn enqueue(&mut self, event: InputEvent, clk: u64) {
+    fn enqueue(&mut self, clk: u64, event: InputEvent) {
         self.push_back((event, clk));
     }
 

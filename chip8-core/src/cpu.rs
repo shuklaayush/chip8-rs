@@ -350,6 +350,7 @@ impl<R: Rng> Cpu<R> {
                 state.keypad[event.key as usize] = event.kind == InputKind::Press;
             }
 
+            // TODO: How do I remove this clone?
             self.tick(state, input_queue.clone())?;
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers(state)?;

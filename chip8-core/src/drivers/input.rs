@@ -15,6 +15,10 @@ pub trait InputDriver: Send {
 
     fn poll(&mut self) -> Result<Option<InputEvent>, Chip8Error>;
 
+    fn log_input(&mut self, _clk: u64, _input: InputEvent) -> Result<(), Chip8Error> {
+        Ok(())
+    }
+
     fn run(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
@@ -24,7 +28,8 @@ pub trait InputDriver: Send {
         run_loop(status.clone(), self.frequency(), move |_| {
             if let Some(event) = self.poll()? {
                 let clk = *clk.checked_read()?;
-                (*queue.checked_write()?).enqueue(event, clk);
+                self.log_input(clk, event)?;
+                (*queue.checked_write()?).enqueue(clk, event);
             }
             Ok(())
         });

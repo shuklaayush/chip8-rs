@@ -19,6 +19,12 @@ pub struct CmdArgs {
     #[arg(long)]
     pub random_seed: Option<u64>,
 
+    #[arg(long, default_value = "inputs.txt")]
+    pub output_file: Option<PathBuf>,
+
+    #[arg(long, default_value = "inputs.txt", conflicts_with = "input_file")]
+    pub input_file: Option<PathBuf>,
+
     #[arg(long = "background-color", default_value_t = Color::Black, conflicts_with="headless")]
     pub bg_color: Color,
     #[arg(long = "foreground-color", default_value_t = Color::White, conflicts_with="headless")]

@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use chip8_core::{
     drivers::InputDriver,
     error::Chip8Error,
@@ -31,11 +33,28 @@ fn keymap(c: char) -> Option<Key> {
 }
 
 #[derive(Default)]
-pub struct TerminalKeyboardInput {}
+pub struct TerminalKeyboardInput {
+    output_file: Option<File>,
+}
+
+impl TerminalKeyboardInput {
+    pub fn new(output_file: Option<File>) -> Self {
+        Self { output_file }
+    }
+}
 
 impl InputDriver for TerminalKeyboardInput {
     fn frequency(&self) -> u64 {
         FREQUENCY
+    }
+
+    fn log_input(&mut self, clk: u64, input: InputEvent) -> Result<(), Chip8Error> {
+        if let Some(output_file) = &mut self.output_file {
+            writeln!(output_file, "{clk},{},{}", input.key, input.kind as u8)
+                .map_err(|e| Chip8Error::InputError(e.to_string()))
+        } else {
+            Ok(())
+        }
     }
 
     fn poll(&mut self) -> Result<Option<InputEvent>, Chip8Error> {
