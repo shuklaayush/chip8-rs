@@ -1,5 +1,8 @@
 use rand::Rng;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     constants::{
@@ -7,6 +10,7 @@ use crate::{
         OPCODE_SIZE, TIMER_FREQ,
     },
     error::Chip8Error,
+    input::{InputEvent, InputKind, InputQueue},
     instructions::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
     state::Chip8State,
@@ -145,8 +149,9 @@ impl<R: Rng> Cpu<R> {
 
     fn execute(
         &mut self,
-        state: &mut Chip8State,
         instruction: Instruction,
+        state: &mut Chip8State,
+        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
     ) -> Result<(), Chip8Error> {
         match instruction {
             Instruction::ClearDisplay => {
@@ -252,31 +257,28 @@ impl<R: Rng> Cpu<R> {
             }
             Instruction::SkipKeyPressed(x) => {
                 let vx = state.registers[x];
-                if *state.keypad[vx as usize].checked_read()? {
+                if state.keypad[vx as usize] {
                     state.program_counter += OPCODE_SIZE;
                 }
             }
             Instruction::SkipKeyNotPressed(x) => {
                 let vx = state.registers[x];
-                if !*state.keypad[vx as usize].checked_read()? {
+                if !state.keypad[vx as usize] {
                     state.program_counter += OPCODE_SIZE;
                 }
             }
             Instruction::LoadDelay(x) => {
                 state.registers[x] = state.delay_timer;
             }
-            Instruction::WaitKeyPress(x) => {
-                let mut pressed = false;
-                while !pressed {
-                    for (i, key) in state.keypad.iter().enumerate() {
-                        if *key.checked_read()? {
-                            state.registers[x] = i as u8;
-                            pressed = true;
-                            break;
-                        }
-                    }
+            Instruction::WaitKeyPress(x) => loop {
+                if let Some(event) =
+                    (*input_queue.checked_write()?).dequeue(*state.clk.checked_read()?)
+                {
+                    state.keypad[event.key as usize] = event.kind == InputKind::Press;
+                    state.registers[x] = event.key as u8;
+                    break;
                 }
-            }
+            },
             Instruction::SetDelay(x) => {
                 state.delay_timer = state.registers[x];
             }
@@ -312,10 +314,14 @@ impl<R: Rng> Cpu<R> {
         Ok(())
     }
 
-    pub fn tick(&mut self, state: &mut Chip8State) -> Result<(), Chip8Error> {
+    pub fn tick(
+        &mut self,
+        state: &mut Chip8State,
+        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+    ) -> Result<(), Chip8Error> {
         let op = self.fetch(state)?;
         let instruction = Self::decode(op)?;
-        self.execute(state, instruction)
+        self.execute(instruction, state, input_queue)
     }
 
     // TODO: Always tick at 60hz?
@@ -329,13 +335,22 @@ impl<R: Rng> Cpu<R> {
         Ok(())
     }
 
-    pub fn run(&mut self, status: Arc<RwLock<Result<(), Chip8Error>>>, state: &mut Chip8State) {
+    pub fn run(
+        &mut self,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
+        state: &mut Chip8State,
+        input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+    ) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
         run_loop(status, self.frequency(), move |_| {
-            self.tick(state)?;
-
             let clk = *state.clk.checked_read()?;
+
+            while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
+                state.keypad[event.key as usize] = event.kind == InputKind::Press;
+            }
+
+            self.tick(state, input_queue.clone())?;
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers(state)?;
             }

@@ -1,6 +1,7 @@
 use chip8_core::{
-    drivers::{InputDriver, InputKind},
+    drivers::InputDriver,
     error::Chip8Error,
+    input::{InputEvent, InputKind},
     keypad::Key,
 };
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -37,7 +38,7 @@ impl InputDriver for TerminalKeyboardInput {
         FREQUENCY
     }
 
-    fn poll(&mut self) -> Result<Option<(Key, InputKind)>, Chip8Error> {
+    fn poll(&mut self) -> Result<Option<InputEvent>, Chip8Error> {
         let event = read().map_err(|e| Chip8Error::InputError(e.to_string()))?;
         if let Event::Key(KeyEvent {
             code,
@@ -58,7 +59,8 @@ impl InputDriver for TerminalKeyboardInput {
 
                     if let Some(kind) = kind {
                         if let Some(key) = keymap(c.to_ascii_uppercase()) {
-                            return Ok(Some((key, kind)));
+                            let event = InputEvent { key, kind };
+                            return Ok(Some(event));
                         }
                     }
                 }

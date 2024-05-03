@@ -7,6 +7,7 @@
 // ╠═══╬═══╬═══╬═══╣
 // ║ A ║ 0 ║ B ║ F ║
 // ╚═══╩═══╩═══╩═══╝
+#[derive(Clone, Copy)]
 pub enum Key {
     Key0,
     Key1,

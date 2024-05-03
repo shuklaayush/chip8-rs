@@ -1,11 +1,15 @@
 use rand::Rng;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     constants::{FONTSET, FONTSET_START_ADDRESS, MEMORY_SIZE, PROGRAM_START_ADDRESS},
     cpu::Cpu,
     drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
+    input::InputEvent,
     rwlock::CheckedRead,
     state::Chip8State,
 };
@@ -13,6 +17,7 @@ use crate::{
 pub struct Chip8<R: Rng> {
     state: Chip8State,
     cpu: Cpu<R>,
+    input_queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
 }
 
 impl<R: Rng> Chip8<R> {
@@ -29,6 +34,7 @@ impl<R: Rng> Chip8<R> {
         Self {
             state,
             cpu: Cpu::new(cpu_freq, rng),
+            input_queue: Arc::new(RwLock::new(VecDeque::new())),
         }
     }
 
@@ -56,9 +62,10 @@ impl<R: Rng> Chip8<R> {
         // Input loop
         let input_handle = {
             let status = status.clone();
-            let keypad = self.state.keypad.clone();
+            let queue = self.input_queue.clone();
+            let clk = self.state.clk.clone();
 
-            tokio::spawn(async move { input.run(status, keypad) })
+            tokio::spawn(async move { input.run(status, queue, clk) })
         };
         // Render loop
         let display_handle = {
@@ -75,11 +82,13 @@ impl<R: Rng> Chip8<R> {
             audio.map(|mut audio| {
                 let status = status.clone();
                 let sound_timer = self.state.sound_timer.clone();
+
                 tokio::spawn(async move { audio.run(status, sound_timer) })
             })
         };
         // CPU loop
-        self.cpu.run(status.clone(), &mut self.state);
+        self.cpu
+            .run(status.clone(), &mut self.state, self.input_queue.clone());
 
         // Wait for all threads
         input_handle

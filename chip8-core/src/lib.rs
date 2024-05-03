@@ -3,6 +3,7 @@ pub mod constants;
 mod cpu;
 pub mod drivers;
 pub mod error;
+pub mod input;
 pub(crate) mod instructions;
 pub mod keypad;
 mod rwlock;

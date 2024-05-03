@@ -1,29 +1,30 @@
-use std::sync::{Arc, RwLock};
-
-use crate::{
-    constants::NUM_KEYS, error::Chip8Error, keypad::Key, rwlock::CheckedWrite, util::run_loop,
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
 };
 
-#[derive(PartialEq, Eq)]
-pub enum InputKind {
-    Press,
-    Release,
-}
+use crate::{
+    error::Chip8Error,
+    input::{InputEvent, InputQueue},
+    rwlock::{CheckedRead, CheckedWrite},
+    util::run_loop,
+};
 
 pub trait InputDriver: Send {
     fn frequency(&self) -> u64;
 
-    fn poll(&mut self) -> Result<Option<(Key, InputKind)>, Chip8Error>;
+    fn poll(&mut self) -> Result<Option<InputEvent>, Chip8Error>;
 
     fn run(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        keypad: Arc<[RwLock<bool>; NUM_KEYS]>,
+        queue: Arc<RwLock<VecDeque<(InputEvent, u64)>>>,
+        clk: Arc<RwLock<u64>>,
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {
-            if let Some((key, kind)) = self.poll()? {
-                // TODO: Use some kind of queue to buffer inputs
-                *keypad[key as usize].checked_write()? = kind == InputKind::Press
+            if let Some(event) = self.poll()? {
+                let clk = *clk.checked_read()?;
+                (*queue.checked_write()?).enqueue(event, clk);
             }
             Ok(())
         });
