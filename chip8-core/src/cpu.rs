@@ -1,4 +1,4 @@
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use std::sync::{Arc, RwLock};
 
 use crate::{
@@ -13,12 +13,12 @@ use crate::{
     util::run_loop,
 };
 
-pub struct Cpu<R: Rng + SeedableRng> {
+pub struct Cpu<R: Rng> {
     clk_freq: u64,
     rng: R,
 }
 
-impl<R: Rng + SeedableRng> Cpu<R> {
+impl<R: Rng> Cpu<R> {
     pub fn new(clk_freq: u64, rng: R) -> Self {
         Self { clk_freq, rng }
     }
