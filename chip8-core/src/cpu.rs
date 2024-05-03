@@ -150,6 +150,7 @@ impl<R: Rng> Cpu<R> {
     fn execute(
         &mut self,
         instruction: Instruction,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
         state: &mut Chip8State,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
@@ -273,7 +274,7 @@ impl<R: Rng> Cpu<R> {
             Instruction::WaitKeyPress(x) => {
                 let clk = *state.clk.checked_read()?;
                 let mut pressed = false;
-                while !pressed {
+                while status.checked_read()?.is_ok() && !pressed {
                     for (i, &key) in state.keypad.iter().enumerate() {
                         if key {
                             state.registers[x] = i as u8;
@@ -323,12 +324,13 @@ impl<R: Rng> Cpu<R> {
 
     pub fn tick(
         &mut self,
+        status: Arc<RwLock<Result<(), Chip8Error>>>,
         state: &mut Chip8State,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         let op = self.fetch(state)?;
         let instruction = Self::decode(op)?;
-        self.execute(instruction, state, input_queue)
+        self.execute(instruction, status, state, input_queue)
     }
 
     // TODO: Always tick at 60hz?
@@ -350,7 +352,7 @@ impl<R: Rng> Cpu<R> {
     ) {
         let ticks_per_timer = self.frequency() / TIMER_FREQ;
 
-        run_loop_at_freq(status, self.frequency(), move |_| {
+        run_loop_at_freq(status.clone(), self.frequency(), move |_| {
             let clk = *state.clk.checked_read()?;
 
             while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
@@ -358,7 +360,7 @@ impl<R: Rng> Cpu<R> {
             }
 
             // TODO: How do I remove this clone?
-            self.tick(state, input_queue.clone())?;
+            self.tick(status.clone(), state, input_queue.clone())?;
             if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
                 self.tick_timers(state)?;
             }
