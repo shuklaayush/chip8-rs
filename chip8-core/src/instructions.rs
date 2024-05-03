@@ -1,6 +1,7 @@
 use crate::state::{Address, Word};
 
-type Register = usize;
+type Nibble = u8; // ideally u4
+type RegisterIndex = usize;
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -8,38 +9,38 @@ pub enum Instruction {
     Return,
     Jump(Address),
     Call(Address),
-    SkipEqual(Register, Word),
-    SkipNotEqual(Register, Word),
-    SkipEqualXY(Register, Register),
-    Load(Register, Word),
-    Add(Register, Word),
+    SkipEqual(RegisterIndex, Word),
+    SkipNotEqual(RegisterIndex, Word),
+    SkipEqualXY(RegisterIndex, RegisterIndex),
+    Load(RegisterIndex, Word),
+    Add(RegisterIndex, Word),
 
-    Move(Register, Register),
-    Or(Register, Register),
-    And(Register, Register),
-    Xor(Register, Register),
-    AddXY(Register, Register),
-    SubXY(Register, Register),
-    ShiftRight(Register),
-    SubYX(Register, Register),
-    ShiftLeft(Register),
+    Move(RegisterIndex, RegisterIndex),
+    Or(RegisterIndex, RegisterIndex),
+    And(RegisterIndex, RegisterIndex),
+    Xor(RegisterIndex, RegisterIndex),
+    AddXY(RegisterIndex, RegisterIndex),
+    SubXY(RegisterIndex, RegisterIndex),
+    ShiftRight(RegisterIndex),
+    SubYX(RegisterIndex, RegisterIndex),
+    ShiftLeft(RegisterIndex),
 
-    SkipNotEqualXY(Register, Register),
+    SkipNotEqualXY(RegisterIndex, RegisterIndex),
     LoadI(Address),
     JumpV0(Address),
-    Random(Register, Word),
-    Draw(Register, Register, Word),
+    Random(RegisterIndex, Word),
+    Draw(RegisterIndex, RegisterIndex, Nibble),
 
-    SkipKeyPressed(Register),
-    SkipKeyNotPressed(Register),
+    SkipKeyPressed(RegisterIndex),
+    SkipKeyNotPressed(RegisterIndex),
 
-    LoadDelay(Register),
-    WaitKeyPress(Register),
-    SetDelay(Register),
-    SetSound(Register),
-    AddI(Register),
-    LoadFont(Register),
-    StoreBCD(Register),
-    StoreRegisters(Register),
-    LoadMemory(Register),
+    LoadDelay(RegisterIndex),
+    WaitKeyPress(RegisterIndex),
+    SetDelay(RegisterIndex),
+    SetSound(RegisterIndex),
+    AddI(RegisterIndex),
+    LoadFont(RegisterIndex),
+    StoreBCD(RegisterIndex),
+    StoreRegisters(RegisterIndex),
+    LoadMemory(RegisterIndex),
 }

@@ -1,6 +1,7 @@
 use chip8_core::error::Chip8Error;
 use std::{error::Error, fmt::Display};
 
+// TODO: Use eyre for errors
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum TuiError {

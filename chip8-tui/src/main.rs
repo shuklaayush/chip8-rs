@@ -7,6 +7,7 @@ use args::CmdArgs;
 use chip8_core::Chip8;
 use clap::Parser;
 use error::TuiError;
+use rand::{random, rngs::StdRng, SeedableRng};
 use std::fs;
 use terminal::{restore_terminal, setup_terminal};
 
@@ -43,7 +44,8 @@ async fn app() -> Result<(), TuiError> {
         }
     };
 
-    let mut chip8 = Chip8::new(args.clk_freq);
+    let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
+    let mut chip8 = Chip8::new(args.clk_freq, seeded_rng);
     let res = chip8
         .load_and_run(rom.as_slice(), input, display, audio)
         .await

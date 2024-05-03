@@ -9,7 +9,6 @@ use crate::{
     rwlock::{CheckedRead, CheckedWrite},
 };
 
-#[inline]
 fn run_loop_inner(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
@@ -42,7 +41,6 @@ fn run_loop_inner(
     Ok(())
 }
 
-#[inline]
 pub(crate) fn run_loop(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,

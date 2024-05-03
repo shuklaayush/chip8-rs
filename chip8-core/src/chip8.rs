@@ -1,3 +1,4 @@
+use rand::{Rng, SeedableRng};
 use std::sync::{Arc, RwLock};
 
 use crate::{
@@ -9,13 +10,13 @@ use crate::{
     state::Chip8State,
 };
 
-pub struct Chip8 {
+pub struct Chip8<R: Rng + SeedableRng> {
     state: Chip8State,
-    cpu: Cpu,
+    cpu: Cpu<R>,
 }
 
-impl Chip8 {
-    pub fn new(cpu_freq: u64) -> Self {
+impl<R: Rng + SeedableRng> Chip8<R> {
+    pub fn new(cpu_freq: u64, rng: R) -> Self {
         let mut state = Chip8State {
             program_counter: PROGRAM_START_ADDRESS,
             ..Default::default()
@@ -27,7 +28,7 @@ impl Chip8 {
 
         Self {
             state,
-            cpu: Cpu::new(cpu_freq),
+            cpu: Cpu::new(cpu_freq, rng),
         }
     }
 

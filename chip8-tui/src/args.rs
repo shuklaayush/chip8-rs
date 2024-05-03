@@ -16,6 +16,9 @@ pub struct CmdArgs {
     #[arg(long, default_value_t = false)]
     pub headless: bool,
 
+    #[arg(long)]
+    pub random_seed: Option<u64>,
+
     #[arg(long = "background-color", default_value_t = Color::Black, conflicts_with="headless")]
     pub bg_color: Color,
     #[arg(long = "foreground-color", default_value_t = Color::White, conflicts_with="headless")]

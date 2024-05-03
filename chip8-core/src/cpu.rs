@@ -1,4 +1,4 @@
-use rand::random;
+use rand::{Rng, SeedableRng};
 use std::sync::{Arc, RwLock};
 
 use crate::{
@@ -13,13 +13,14 @@ use crate::{
     util::run_loop,
 };
 
-pub struct Cpu {
+pub struct Cpu<R: Rng + SeedableRng> {
     clk_freq: u64,
+    rng: R,
 }
 
-impl Cpu {
-    pub fn new(clk_freq: u64) -> Self {
-        Self { clk_freq }
+impl<R: Rng + SeedableRng> Cpu<R> {
+    pub fn new(clk_freq: u64, rng: R) -> Self {
+        Self { clk_freq, rng }
     }
 
     pub fn frequency(&self) -> u64 {
@@ -117,7 +118,6 @@ impl Cpu {
                 0xE0A1 => Ok(Instruction::SkipKeyNotPressed(x)),
                 _ => Err(Chip8Error::UnimplementedOpcode(opcode)),
             },
-
             0xF000 => match opcode & 0xF0FF {
                 // 0xFX07
                 0xF007 => Ok(Instruction::LoadDelay(x)),
@@ -230,8 +230,7 @@ impl Cpu {
                 state.program_counter = (state.registers[0] as u16) + nnn;
             }
             Instruction::Random(x, nn) => {
-                // TODO: See if random is portable/wasm-friendly
-                let r: u8 = random();
+                let r: u8 = self.rng.gen();
                 state.registers[x] = r & nn;
             }
             Instruction::Draw(x, y, n) => {
@@ -319,6 +318,7 @@ impl Cpu {
         self.execute(state, instruction)
     }
 
+    // TODO: Always tick at 60hz?
     pub fn tick_timers(&mut self, state: &mut Chip8State) -> Result<(), Chip8Error> {
         if state.delay_timer > 0 {
             state.delay_timer -= 1;

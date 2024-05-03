@@ -7,7 +7,6 @@ pub trait CheckedRead<T> {
 }
 
 impl<T> CheckedRead<T> for RwLock<T> {
-    #[inline]
     fn checked_read(&self) -> Result<RwLockReadGuard<'_, T>, Chip8Error> {
         self.read()
             .map_err(|e| Chip8Error::MutexReadError(e.to_string()))
@@ -15,7 +14,6 @@ impl<T> CheckedRead<T> for RwLock<T> {
 }
 
 impl<T> CheckedRead<T> for Arc<RwLock<T>> {
-    #[inline]
     fn checked_read(&self) -> Result<RwLockReadGuard<'_, T>, Chip8Error> {
         self.read()
             .map_err(|e| Chip8Error::MutexReadError(e.to_string()))
@@ -27,7 +25,6 @@ pub trait CheckedWrite<T> {
 }
 
 impl<T> CheckedWrite<T> for RwLock<T> {
-    #[inline]
     fn checked_write(&self) -> Result<RwLockWriteGuard<'_, T>, Chip8Error> {
         self.write()
             .map_err(|e| Chip8Error::MutexWriteError(e.to_string()))
@@ -35,7 +32,6 @@ impl<T> CheckedWrite<T> for RwLock<T> {
 }
 
 impl<T> CheckedWrite<T> for Arc<RwLock<T>> {
-    #[inline]
     fn checked_write(&self) -> Result<RwLockWriteGuard<'_, T>, Chip8Error> {
         self.write()
             .map_err(|e| Chip8Error::MutexWriteError(e.to_string()))

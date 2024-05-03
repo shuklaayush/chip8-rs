@@ -1,3 +1,6 @@
 [workspace]
 members = ["chip8-core", "chip8-tui"]
 resolver = "2"
+
+[workspace.dependencies]
+rand = { version = "0.8.5" }

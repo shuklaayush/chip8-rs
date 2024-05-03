@@ -7,6 +7,7 @@ use crate::constants::{
 pub type Address = u16;
 pub type Word = u8;
 
+// TODO: Compare performance with atomics, channels instead of locks
 pub struct Chip8State {
     pub registers: [Word; NUM_REGISTERS],
     pub memory: [Word; MEMORY_SIZE],

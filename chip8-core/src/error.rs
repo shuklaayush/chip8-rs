@@ -2,6 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use crate::state::Address;
 
+// TODO: Use thiserror for errors
 #[derive(Debug, Clone)]
 pub enum Chip8Error {
     MemoryAccessOutOfBounds(Address),
