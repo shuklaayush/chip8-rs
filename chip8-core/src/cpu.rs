@@ -7,7 +7,7 @@ use std::{
 use crate::{
     constants::{
         DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET_START_ADDRESS, FONT_SIZE,
-        OPCODE_SIZE, TIMER_FREQ,
+        OPCODE_SIZE, TICKS_PER_TIMER,
     },
     error::Chip8Error,
     input::{InputEvent, InputKind, InputQueue},
@@ -333,7 +333,6 @@ impl<R: Rng> Cpu<R> {
         self.execute(instruction, status, state, input_queue)
     }
 
-    // TODO: Always tick at 60hz?
     pub fn tick_timers(&mut self, state: &mut Chip8State) -> Result<(), Chip8Error> {
         if state.delay_timer > 0 {
             state.delay_timer -= 1;
@@ -350,8 +349,6 @@ impl<R: Rng> Cpu<R> {
         state: &mut Chip8State,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) {
-        let ticks_per_timer = self.frequency() / TIMER_FREQ;
-
         run_loop(status.clone(), self.frequency(), move |_| {
             let clk = *state.clk.checked_read()?;
 
@@ -361,7 +358,7 @@ impl<R: Rng> Cpu<R> {
 
             // TODO: How do I remove this clone?
             self.tick(status.clone(), state, input_queue.clone())?;
-            if ticks_per_timer == 0 || clk % ticks_per_timer == 0 {
+            if clk % TICKS_PER_TIMER == 0 {
                 self.tick_timers(state)?;
             }
 

@@ -113,4 +113,4 @@ pub const FONTSET: [u8; NUM_FONTS * FONT_SIZE] = [
     0b10000000, // █
 ];
 
-pub const TIMER_FREQ: u64 = 60; // 60Hz
+pub const TICKS_PER_TIMER: u64 = 8;

@@ -19,16 +19,16 @@ pub struct CmdArgs {
     #[arg(long)]
     pub random_seed: Option<u64>,
 
-    #[arg(long)]
+    #[arg(long = "input")]
     pub input_file: Option<PathBuf>,
 
     #[arg(long, default_value_t = false, requires = "input_file")]
     pub overwrite: bool,
 
-    #[arg(long = "background-color", default_value_t = Color::Black, conflicts_with="headless")]
+    #[arg(long = "background", default_value_t = Color::Black, conflicts_with="headless")]
     pub bg_color: Color,
-    #[arg(long = "foreground-color", default_value_t = Color::White, conflicts_with="headless")]
+    #[arg(long = "foreground", default_value_t = Color::White, conflicts_with="headless")]
     pub fg_color: Color,
-    #[arg(long = "border-color", default_value_t = Color::White, conflicts_with="headless")]
+    #[arg(long = "border", default_value_t = Color::White, conflicts_with="headless")]
     pub border_color: Color,
 }
