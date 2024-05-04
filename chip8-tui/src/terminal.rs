@@ -5,10 +5,11 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use eyre::{bail, Result};
 use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
 use std::io::{stdout, Error, Stdout};
 
-pub fn setup_terminal(headless: bool) -> Result<Terminal<CrosstermBackend<Stdout>>, Error> {
+pub fn setup_terminal(headless: bool) -> Result<Terminal<CrosstermBackend<Stdout>>> {
     enable_raw_mode()?;
     if !headless {
         execute!(stdout(), EnterAlternateScreen, Hide)?;
@@ -24,14 +25,12 @@ pub fn setup_terminal(headless: bool) -> Result<Terminal<CrosstermBackend<Stdout
     // Check terminal size
     let Rect { width, height, .. } = terminal.size()?;
     if width < 2 * DISPLAY_WIDTH as u16 {
-        Error::other(format!(
+        bail!(
             "Error: Terminal width {width} less than minimum width {}",
             2 * DISPLAY_WIDTH,
-        ));
+        );
     } else if height < DISPLAY_HEIGHT as u16 {
-        Error::other(format!(
-            "Error: Terminal height {height} less than minimum height {DISPLAY_HEIGHT}"
-        ));
+        bail!("Error: Terminal height {height} less than minimum height {DISPLAY_HEIGHT}");
     }
 
     Ok(terminal)

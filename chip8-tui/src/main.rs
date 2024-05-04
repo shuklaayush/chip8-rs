@@ -1,6 +1,5 @@
 mod args;
 mod drivers;
-mod error;
 mod terminal;
 
 use args::CmdArgs;
@@ -12,7 +11,7 @@ use chip8_core::{
 use clap::Parser;
 use csv::{Reader, Writer, WriterBuilder};
 use drivers::input::CsvRecord;
-use error::TuiError;
+use eyre::Result;
 use rand::{random, rngs::StdRng, SeedableRng};
 use std::fs::{self, OpenOptions};
 use terminal::{restore_terminal, setup_terminal};
@@ -21,36 +20,32 @@ use crate::drivers::{
     audio::TerminalAudio, display::TerminalDisplay, input::TerminalKeyboardInput,
 };
 
-async fn app() -> Result<(), TuiError> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = CmdArgs::parse();
 
-    let rom = fs::read(args.rom).map_err(|e| TuiError::RomReadError(e.to_string()))?;
-    let terminal =
-        setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
+    let rom = fs::read(args.rom)?;
+    let terminal = setup_terminal(args.headless)?;
 
     let (inputs, input_writer) = if let Some(input_file) = &args.input_file {
         if args.overwrite {
-            let writer = Writer::from_path(input_file).expect("Failed to open or create file");
+            let writer = Writer::from_path(input_file)?;
             (vec![], Some(writer))
         } else {
-            let mut reader = Reader::from_path(input_file).expect("Failed to open file");
+            let mut reader = Reader::from_path(input_file)?;
             let parsed: Vec<(u64, InputEvent)> = reader
                 .deserialize()
                 .map(|result| {
-                    let record: CsvRecord =
-                        result.map_err(|e| TuiError::InputError(e.to_string()))?;
-                    let key = Key::try_from(record.key)
-                        .map_err(|e| TuiError::InputError(e.to_string()))?;
-                    let kind = InputKind::try_from(record.kind)
-                        .map_err(|e| TuiError::InputError(e.to_string()))?;
+                    let record: CsvRecord = result?;
+                    let key = Key::try_from(record.key)?;
+                    let kind = InputKind::try_from(record.kind)?;
                     Ok((record.clk, InputEvent { key, kind }))
                 })
-                .collect::<Result<_, _>>()?;
+                .collect::<Result<_>>()?;
             let f = OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(input_file)
-                .expect("Failed to open file");
+                .open(input_file)?;
             let writer = WriterBuilder::new()
                 .has_headers(parsed.is_empty())
                 .from_writer(f);
@@ -86,17 +81,10 @@ async fn app() -> Result<(), TuiError> {
     let mut chip8 = Chip8::new(args.clk_freq, seeded_rng, inputs);
     let res = chip8
         .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
-        .await
-        .map_err(TuiError::Chip8Error);
+        .await;
 
-    restore_terminal(args.headless).map_err(|e| TuiError::TerminalRestoreError(e.to_string()))?;
-    res
-}
+    restore_terminal(args.headless)?;
+    res?;
 
-#[tokio::main]
-async fn main() {
-    if let Err(e) = app().await {
-        eprintln!("{e}");
-        std::process::exit(1);
-    }
+    Ok(())
 }
