@@ -27,11 +27,16 @@ pub struct InputEvent {
 }
 
 pub trait InputQueue {
+    fn back_clk(&self) -> Option<u64>;
     fn enqueue(&mut self, clk: u64, event: InputEvent);
     fn dequeue(&mut self, current_clk: u64) -> Option<InputEvent>;
 }
 
 impl InputQueue for VecDeque<(u64, InputEvent)> {
+    fn back_clk(&self) -> Option<u64> {
+        self.back().map(|(clk, _)| *clk)
+    }
+
     fn enqueue(&mut self, clk: u64, event: InputEvent) {
         self.push_back((clk, event));
     }

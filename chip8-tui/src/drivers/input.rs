@@ -42,12 +42,12 @@ pub struct CsvRecord {
 
 #[derive(Default)]
 pub struct TerminalKeyboardInput<W: Write> {
-    output: Option<Writer<W>>,
+    writer: Option<Writer<W>>,
 }
 
 impl<W: Write> TerminalKeyboardInput<W> {
-    pub fn new(output: Option<Writer<W>>) -> Self {
-        Self { output }
+    pub fn new(writer: Option<Writer<W>>) -> Self {
+        Self { writer }
     }
 }
 
@@ -57,13 +57,13 @@ impl<W: Write + Send> InputDriver for TerminalKeyboardInput<W> {
     }
 
     fn log_input(&mut self, clk: u64, input: InputEvent) -> Result<(), Chip8Error> {
-        if let Some(output) = &mut self.output {
+        if let Some(writer) = &mut self.writer {
             let record = CsvRecord {
                 clk,
                 key: char::from(input.key),
                 kind: input.kind as u8,
             };
-            output
+            writer
                 .serialize(record)
                 .map_err(|e| Chip8Error::InputError(e.to_string()))
         } else {

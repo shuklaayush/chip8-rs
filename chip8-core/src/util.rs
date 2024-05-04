@@ -11,22 +11,6 @@ use crate::{
 
 fn run_loop_inner(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
-    mut fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
-) -> Result<(), Chip8Error> {
-    let mut prev_time = SystemTime::now();
-    while status.checked_read()?.is_ok() {
-        let curr_time = SystemTime::now();
-        let elapsed = curr_time.duration_since(prev_time).unwrap_or_default();
-
-        fn_tick(elapsed)?;
-        prev_time = curr_time;
-    }
-
-    Ok(())
-}
-
-fn run_loop_at_freq_inner(
-    status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
     mut fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
 ) -> Result<(), Chip8Error> {
@@ -57,23 +41,12 @@ fn run_loop_at_freq_inner(
     Ok(())
 }
 
-pub(crate) fn run_loop_at_freq(
+pub(crate) fn run_loop(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
     fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
 ) {
-    let res = run_loop_at_freq_inner(status.clone(), frequency, fn_tick);
-
-    if let Err(err) = res {
-        *status.checked_write().unwrap() = Err(err);
-    }
-}
-
-pub(crate) fn run_loop(
-    status: Arc<RwLock<Result<(), Chip8Error>>>,
-    fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
-) {
-    let res = run_loop_inner(status.clone(), fn_tick);
+    let res = run_loop_inner(status.clone(), frequency, fn_tick);
 
     if let Err(err) = res {
         *status.checked_write().unwrap() = Err(err);

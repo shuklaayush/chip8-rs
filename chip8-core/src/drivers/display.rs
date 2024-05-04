@@ -4,7 +4,7 @@ use crate::{
     constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH},
     error::Chip8Error,
     rwlock::CheckedRead,
-    util::run_loop_at_freq,
+    util::run_loop,
 };
 
 pub trait DisplayDriver: Send {
@@ -24,7 +24,7 @@ pub trait DisplayDriver: Send {
         clk: Arc<RwLock<u64>>,
     ) {
         let mut prev_clk = 0;
-        run_loop_at_freq(status.clone(), self.frequency(), move |elapsed| {
+        run_loop(status.clone(), self.frequency(), move |elapsed| {
             // TODO: Put behind feature flag
             let curr_clk = *clk.checked_read()?;
             let freq = (curr_clk - prev_clk) as f64 / elapsed.as_secs_f64();

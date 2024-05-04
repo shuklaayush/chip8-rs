@@ -7,7 +7,7 @@ use std::{
 use crate::{
     constants::{FONTSET, FONTSET_START_ADDRESS, MEMORY_SIZE, PROGRAM_START_ADDRESS},
     cpu::Cpu,
-    drivers::{AudioDriver, DisplayDriver, InputDriver, InterruptDriver},
+    drivers::{AudioDriver, DisplayDriver, InputDriver},
     error::Chip8Error,
     input::InputEvent,
     rwlock::CheckedRead,
@@ -21,7 +21,7 @@ pub struct Chip8<R: Rng> {
 }
 
 impl<R: Rng> Chip8<R> {
-    pub fn new(cpu_freq: u64, rng: R, inputs: Option<Vec<(u64, InputEvent)>>) -> Self {
+    pub fn new(cpu_freq: u64, rng: R, inputs: Vec<(u64, InputEvent)>) -> Self {
         let mut state = Chip8State {
             program_counter: PROGRAM_START_ADDRESS,
             ..Default::default()
@@ -34,7 +34,7 @@ impl<R: Rng> Chip8<R> {
         Self {
             state,
             cpu: Cpu::new(cpu_freq, rng),
-            input_queue: Arc::new(RwLock::new(VecDeque::from(inputs.unwrap_or_default()))),
+            input_queue: Arc::new(RwLock::new(VecDeque::from(inputs))),
         }
     }
 
@@ -52,29 +52,20 @@ impl<R: Rng> Chip8<R> {
 
     pub async fn run(
         &mut self,
-        mut interrupt: impl InterruptDriver + 'static,
-        input: Option<impl InputDriver + 'static>,
+        mut input: impl InputDriver + 'static,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
         // Status flag to check if machine is still running
         let status = Arc::new(RwLock::new(Ok(())));
 
-        // Interrupt loop
-        let interrupt_handle = {
-            let status = status.clone();
-
-            tokio::spawn(async move { interrupt.run(status) })
-        };
         // Input loop
         let input_handle = {
-            input.map(|mut input| {
-                let status = status.clone();
-                let queue = self.input_queue.clone();
-                let clk = self.state.clk.clone();
+            let status = status.clone();
+            let queue = self.input_queue.clone();
+            let clk = self.state.clk.clone();
 
-                tokio::spawn(async move { input.run(status, queue, clk) })
-            })
+            tokio::spawn(async move { input.run(status, queue, clk) })
         };
         // Render loop
         let display_handle = {
@@ -100,14 +91,9 @@ impl<R: Rng> Chip8<R> {
             .run(status.clone(), &mut self.state, self.input_queue.clone());
 
         // Wait for all threads
-        interrupt_handle
+        input_handle
             .await
             .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
-        if let Some(input_handle) = input_handle {
-            input_handle
-                .await
-                .map_err(|e| Chip8Error::AsyncAwaitError(e.to_string()))?;
-        }
         if let Some(display_handle) = display_handle {
             display_handle
                 .await
@@ -126,12 +112,11 @@ impl<R: Rng> Chip8<R> {
     pub async fn load_and_run(
         &mut self,
         rom: &[u8],
-        interrupt: impl InterruptDriver + 'static,
-        input: Option<impl InputDriver + 'static>,
+        input: impl InputDriver + 'static,
         display: Option<impl DisplayDriver + 'static>,
         audio: Option<impl AudioDriver + 'static>,
     ) -> Result<(), Chip8Error> {
         self.load(rom)?;
-        self.run(interrupt, input, display, audio).await
+        self.run(input, display, audio).await
     }
 }

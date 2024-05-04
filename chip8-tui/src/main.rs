@@ -10,11 +10,11 @@ use chip8_core::{
     Chip8,
 };
 use clap::Parser;
-use csv::{Reader, Writer};
-use drivers::{input::CsvRecord, interrupt::TerminalKeyboardInterrupt};
+use csv::{Reader, Writer, WriterBuilder};
+use drivers::input::CsvRecord;
 use error::TuiError;
 use rand::{random, rngs::StdRng, SeedableRng};
-use std::fs;
+use std::fs::{self, OpenOptions};
 use terminal::{restore_terminal, setup_terminal};
 
 use crate::drivers::{
@@ -28,15 +28,40 @@ async fn app() -> Result<(), TuiError> {
     let terminal =
         setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
 
-    let output = args
-        .output_file
-        .map(|f| Writer::from_path(f).expect("Failed to create or open file"));
+    let (inputs, input_writer) = if let Some(input_file) = &args.input_file {
+        let mut parsed = vec![];
+        if !args.overwrite {
+            let mut reader = Reader::from_path(input_file).expect("Failed to open file");
+            for record in reader.deserialize() {
+                let record: CsvRecord = record.map_err(|e| TuiError::InputError(e.to_string()))?;
+                let key =
+                    Key::try_from(record.key).map_err(|e| TuiError::InputError(e.to_string()))?;
+                let kind = InputKind::try_from(record.kind)
+                    .map_err(|e| TuiError::InputError(e.to_string()))?;
+                let event = InputEvent { key, kind };
+                parsed.push((record.clk, event))
+            }
+        }
 
-    let interrupt_driver = TerminalKeyboardInterrupt::default();
-    let input_driver = match args.input_file {
-        Some(_) => None,
-        None => Some(TerminalKeyboardInput::new(output)),
+        let writer = if args.overwrite {
+            Writer::from_path(input_file).expect("Failed to open or create file")
+        } else {
+            let f = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(input_file)
+                .expect("Failed to open file");
+            WriterBuilder::new()
+                .has_headers(parsed.is_empty())
+                .from_writer(f)
+        };
+
+        (parsed, Some(writer))
+    } else {
+        (vec![], None)
     };
+
+    let input_driver = TerminalKeyboardInput::new(input_writer);
     let display_driver = {
         if !args.headless {
             Some(TerminalDisplay::new(
@@ -58,33 +83,10 @@ async fn app() -> Result<(), TuiError> {
         }
     };
 
-    let inputs = if let Some(input_file) = args.input_file {
-        let mut reader = Reader::from_path(input_file).expect("Failed to open file");
-
-        let mut parsed = vec![];
-        for record in reader.deserialize() {
-            let record: CsvRecord = record.map_err(|e| TuiError::InputError(e.to_string()))?;
-            let key = Key::try_from(record.key).map_err(|e| TuiError::InputError(e.to_string()))?;
-            let kind = InputKind::try_from(record.kind)
-                .map_err(|e| TuiError::InputError(e.to_string()))?;
-            let event = InputEvent { key, kind };
-            parsed.push((record.clk, event))
-        }
-        Some(parsed)
-    } else {
-        None
-    };
-
     let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
     let mut chip8 = Chip8::new(args.clk_freq, seeded_rng, inputs);
     let res = chip8
-        .load_and_run(
-            rom.as_slice(),
-            interrupt_driver,
-            input_driver,
-            display_driver,
-            audio_driver,
-        )
+        .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
         .await
         .map_err(TuiError::Chip8Error);
 
