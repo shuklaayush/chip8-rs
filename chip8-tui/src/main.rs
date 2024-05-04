@@ -29,34 +29,33 @@ async fn app() -> Result<(), TuiError> {
         setup_terminal(args.headless).map_err(|e| TuiError::TerminalSetupError(e.to_string()))?;
 
     let (inputs, input_writer) = if let Some(input_file) = &args.input_file {
-        let mut parsed = vec![];
-        if !args.overwrite {
-            let mut reader = Reader::from_path(input_file).expect("Failed to open file");
-            for record in reader.deserialize() {
-                let record: CsvRecord = record.map_err(|e| TuiError::InputError(e.to_string()))?;
-                let key =
-                    Key::try_from(record.key).map_err(|e| TuiError::InputError(e.to_string()))?;
-                let kind = InputKind::try_from(record.kind)
-                    .map_err(|e| TuiError::InputError(e.to_string()))?;
-                let event = InputEvent { key, kind };
-                parsed.push((record.clk, event))
-            }
-        }
-
-        let writer = if args.overwrite {
-            Writer::from_path(input_file).expect("Failed to open or create file")
+        if args.overwrite {
+            let writer = Writer::from_path(input_file).expect("Failed to open or create file");
+            (vec![], Some(writer))
         } else {
+            let mut reader = Reader::from_path(input_file).expect("Failed to open file");
+            let parsed: Vec<(u64, InputEvent)> = reader
+                .deserialize()
+                .map(|result| {
+                    let record: CsvRecord =
+                        result.map_err(|e| TuiError::InputError(e.to_string()))?;
+                    let key = Key::try_from(record.key)
+                        .map_err(|e| TuiError::InputError(e.to_string()))?;
+                    let kind = InputKind::try_from(record.kind)
+                        .map_err(|e| TuiError::InputError(e.to_string()))?;
+                    Ok((record.clk, InputEvent { key, kind }))
+                })
+                .collect::<Result<_, _>>()?;
             let f = OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(input_file)
                 .expect("Failed to open file");
-            WriterBuilder::new()
+            let writer = WriterBuilder::new()
                 .has_headers(parsed.is_empty())
-                .from_writer(f)
-        };
-
-        (parsed, Some(writer))
+                .from_writer(f);
+            (parsed, Some(writer))
+        }
     } else {
         (vec![], None)
     };
