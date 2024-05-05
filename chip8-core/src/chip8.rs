@@ -50,6 +50,7 @@ impl<R: Rng> Chip8<R> {
         }
     }
 
+    // TODO: Check if rt-multi-thread actually spawns separate threads
     pub async fn run(
         &mut self,
         mut input: impl InputDriver + 'static,

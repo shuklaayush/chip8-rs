@@ -47,7 +47,6 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
         &mut self,
         frame_buffer: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
         cpu_freq: Option<u64>,
-        fps: Option<u64>,
     ) -> Result<(), Chip8Error> {
         let frame_str = frame_buffer
             .iter()
@@ -61,9 +60,8 @@ impl<B: Backend + Send> DisplayDriver for TerminalDisplay<B> {
 
         let block = Block::bordered()
             .title(format!(
-                "CHIP-8 {}{}",
+                "CHIP-8 {}",
                 cpu_freq.map_or("".to_string(), |f| format!("{f}Hz")),
-                fps.map_or("".to_string(), |f| format!(" {f}FPS"))
             ))
             .fg(self.border_color);
         let area = Rect::new(
