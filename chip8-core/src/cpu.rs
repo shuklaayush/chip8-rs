@@ -243,15 +243,17 @@ impl<R: Rng> Cpu<R> {
                 let x0 = state.registers[x] as usize % DISPLAY_WIDTH;
                 let y0 = state.registers[y] as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
-                let mut frame_buffer = (*state.frame_buffer).checked_write()?;
                 for ys in 0..n {
                     let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
                     let pixels = state.memory[state.index_register as usize + ys as usize];
                     for xs in 0..8 {
                         let x = (x0 + xs) % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        flipped |= pixel & frame_buffer[y][x];
-                        frame_buffer[y][x] ^= pixel;
+                        let fb = ((*state.frame_buffer).checked_read()?)[y][x];
+                        flipped |= pixel & fb;
+                        if pixel {
+                            ((*state.frame_buffer).checked_write()?)[y][x] = !fb;
+                        }
                     }
                 }
                 state.registers[FLAG_REGISTER] = flipped as u8;

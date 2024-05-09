@@ -9,6 +9,8 @@ pub type Word = u8;
 
 // TODO: Compare performance with atomics, channels instead of locks
 pub struct Chip8State {
+    /// Cycle counter to keep track of the number of CPU cycles executed.
+    pub clk: Arc<RwLock<u64>>,
     pub registers: [Word; NUM_REGISTERS],
     pub memory: [Word; MEMORY_SIZE],
     pub index_register: Address,
@@ -19,8 +21,6 @@ pub struct Chip8State {
     pub sound_timer: Arc<RwLock<Word>>,
     pub keypad: [bool; NUM_KEYS],
     pub frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
-    /// Cycle counter to keep track of the number of CPU cycles executed.
-    pub clk: Arc<RwLock<u64>>,
 }
 
 impl Default for Chip8State {
