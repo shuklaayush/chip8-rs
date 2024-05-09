@@ -26,6 +26,7 @@ pub struct Chip8State {
 impl Default for Chip8State {
     fn default() -> Self {
         Self {
+            clk: Arc::new(RwLock::new(0)),
             registers: [0; NUM_REGISTERS],
             memory: [0; MEMORY_SIZE],
             index_register: 0,
@@ -36,7 +37,6 @@ impl Default for Chip8State {
             sound_timer: Arc::new(RwLock::new(0)),
             keypad: [false; NUM_KEYS],
             frame_buffer: Arc::new(RwLock::new([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT])),
-            clk: Arc::new(RwLock::new(0)),
         }
     }
 }
