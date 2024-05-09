@@ -17,5 +17,4 @@ Arguments:
 Options:
       --clock-frequency <CLK_FREQ>    [default: 560]
       --refresh-rate <REFRESH_RATE>   [default: 60]
-      --input-frequency <INPUT_FREQ>  [default: 120]
 ```

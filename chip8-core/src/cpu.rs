@@ -275,17 +275,11 @@ impl<R: Rng> Cpu<R> {
             }
             Instruction::WaitKeyPress(x) => {
                 let clk = *state.clk.checked_read()?;
-                let mut pressed = false;
-                while status.checked_read()?.is_ok() && !pressed {
-                    for (i, &key) in state.keypad.iter().enumerate() {
-                        if key {
-                            state.registers[x] = i as u8;
-                            pressed = true;
-                            break;
-                        }
-                    }
-                    while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
+                while status.checked_read()?.is_ok() {
+                    if let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
                         state.keypad[event.key as usize] = event.kind == InputKind::Press;
+                        state.registers[x] = event.key as u8;
+                        break;
                     }
                 }
             }
