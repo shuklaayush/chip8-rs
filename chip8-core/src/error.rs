@@ -1,57 +1,27 @@
-use std::{error::Error, fmt::Display};
+use thiserror::Error;
 
 use crate::state::Address;
 
-// TODO: Use thiserror for errors
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum Chip8Error {
+    #[error("Memory access out of bounds: 0x{0:04X}")]
     MemoryAccessOutOfBounds(Address),
+    #[error("Unimplemented opcode: 0x{0:04X}")]
     UnimplementedOpcode(u16),
+    #[error("ROM size too big: {0}bytes")]
     RomTooBig(usize),
+    #[error("Display Error: {0}")]
     DisplayError(String),
+    #[error("Input Error: {0}")]
     InputError(String),
+    #[error("Audio Error: {0}")]
     AudioError(String),
+    #[error("Async/Await Error: {0}")]
     AsyncAwaitError(String),
+    #[error("Mutex read error: {0}")]
     MutexReadError(String),
+    #[error("Mutex write error: {0}")]
     MutexWriteError(String),
+    #[error("Interrupted")]
     Interrupt,
 }
-
-impl Display for Chip8Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Chip8Error::RomTooBig(size) => {
-                write!(f, "ROM size too big: {size}bytes")
-            }
-            Chip8Error::MemoryAccessOutOfBounds(pc) => {
-                write!(f, "Memory access out of bounds: 0x{:04X}", pc)
-            }
-            Chip8Error::UnimplementedOpcode(op) => {
-                write!(f, "Unimplemented opcode: 0x{:04X}", op)
-            }
-            Chip8Error::DisplayError(str) => {
-                write!(f, "Display Error: {str}")
-            }
-            Chip8Error::InputError(str) => {
-                write!(f, "Input Error: {str}")
-            }
-            Chip8Error::AudioError(str) => {
-                write!(f, "Audio Error: {str}")
-            }
-            Chip8Error::AsyncAwaitError(str) => {
-                write!(f, "Async/Await Error: {str}")
-            }
-            Chip8Error::MutexReadError(str) => {
-                write!(f, "Mutex read error: {str}")
-            }
-            Chip8Error::MutexWriteError(str) => {
-                write!(f, "Mutex write error: {str}")
-            }
-            Chip8Error::Interrupt => {
-                write!(f, "Interrupted")
-            }
-        }
-    }
-}
-
-impl Error for Chip8Error {}

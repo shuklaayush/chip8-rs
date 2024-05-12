@@ -95,7 +95,7 @@ impl State for SimpleState {
     }
 
     fn memory(&self, addr: Address) -> Result<Word, Chip8Error> {
-        if (addr as usize) < self.memory.len() {
+        if (addr as usize) < MEMORY_SIZE {
             Ok(self.memory[addr as usize])
         } else {
             Err(Chip8Error::MemoryAccessOutOfBounds(addr))
@@ -150,7 +150,7 @@ impl State for SimpleState {
     }
 
     fn set_memory(&mut self, addr: Address, value: Word) -> Result<(), Chip8Error> {
-        if (addr as usize) < self.memory.len() {
+        if (addr as usize) < MEMORY_SIZE {
             self.memory[addr as usize] = value;
             Ok(())
         } else {
