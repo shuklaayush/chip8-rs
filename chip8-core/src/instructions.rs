@@ -1,7 +1,7 @@
 use crate::state::{Address, Word};
 
 type Nibble = u8; // ideally u4
-type RegisterIndex = usize;
+type RegisterIndex = u8; // ideally u4
 
 #[derive(Debug)]
 pub enum Instruction {

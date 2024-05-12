@@ -5,12 +5,9 @@ use std::{
 };
 
 use crate::{
-    constants::{
-        DISPLAY_HEIGHT, DISPLAY_WIDTH, FLAG_REGISTER, FONTSET_START_ADDRESS, FONT_SIZE,
-        OPCODE_SIZE, TICKS_PER_TIMER,
-    },
+    constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH, FONTSET_START_ADDRESS, FONT_SIZE, TICKS_PER_TIMER},
     error::Chip8Error,
-    input::{InputEvent, InputKind, InputQueue},
+    input::{InputEvent, InputQueue},
     instructions::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
     state::Chip8State,
@@ -32,25 +29,17 @@ impl<R: Rng> Cpu<R> {
     }
 
     fn fetch(&mut self, state: &mut Chip8State) -> Result<u16, Chip8Error> {
-        let pc = state.program_counter as usize;
-        let hi = *state
-            .memory
-            .get(pc)
-            .ok_or(Chip8Error::MemoryAccessOutOfBounds(state.program_counter))?;
-        let lo = *state
-            .memory
-            .get(pc + 1)
-            .ok_or(Chip8Error::MemoryAccessOutOfBounds(
-                state.program_counter + 1,
-            ))?;
+        let pc = state.program_counter();
+        let hi = state.memory(pc)?;
+        let lo = state.memory(pc + 1)?;
 
-        state.increment_pc();
+        state.increment_program_counter();
         Ok(u16::from_be_bytes([hi, lo]))
     }
 
     fn decode(opcode: u16) -> Result<Instruction, Chip8Error> {
-        let x = ((opcode >> 8) & 0x000F) as usize;
-        let y = ((opcode >> 4) & 0x000F) as usize;
+        let x = ((opcode >> 8) & 0x000F) as u8;
+        let y = ((opcode >> 4) & 0x000F) as u8;
 
         let n = (opcode & 0x000F) as u8;
         let nn = (opcode & 0x00FF) as u8;
@@ -156,161 +145,214 @@ impl<R: Rng> Cpu<R> {
     ) -> Result<(), Chip8Error> {
         match instruction {
             Instruction::ClearDisplay => {
-                let mut frame_buffer = state.frame_buffer.checked_write()?;
-                *frame_buffer = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+                state.clear_framebuffer()?;
             }
             Instruction::Return => {
                 state.pop_stack();
             }
             Instruction::Jump(nnn) => {
-                state.program_counter = nnn;
+                state.set_program_counter(nnn);
             }
             Instruction::Call(nnn) => {
                 state.push_stack(nnn);
             }
             Instruction::SkipEqual(x, nn) => {
-                if state.registers[x] == nn {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                if vx == nn {
+                    state.increment_program_counter();
                 }
             }
             Instruction::SkipNotEqual(x, nn) => {
-                if state.registers[x] != nn {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                if vx != nn {
+                    state.increment_program_counter();
                 }
             }
             Instruction::SkipEqualXY(x, y) => {
-                if state.registers[x] == state.registers[y] {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                if vx == vy {
+                    state.increment_program_counter();
                 }
             }
             Instruction::Load(x, nn) => {
-                state.registers[x] = nn;
+                state.set_register(x, nn);
             }
             Instruction::Add(x, nn) => {
-                state.registers[x] = state.registers[x].wrapping_add(nn);
+                let vx = state.register(x);
+                let val = vx.wrapping_add(nn);
+                state.set_register(x, val);
             }
             Instruction::Move(x, y) => {
-                state.registers[x] = state.registers[y];
+                let vy = state.register(y);
+                state.set_register(x, vy);
             }
             Instruction::Or(x, y) => {
-                state.registers[x] |= state.registers[y];
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let val = vx | vy;
+                state.set_register(x, val);
             }
             Instruction::And(x, y) => {
-                state.registers[x] &= state.registers[y];
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let val = vx & vy;
+                state.set_register(x, val);
             }
             Instruction::Xor(x, y) => {
-                state.registers[x] ^= state.registers[y];
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let val = vx ^ vy;
+                state.set_register(x, val);
             }
             Instruction::AddXY(x, y) => {
-                let (sum, carry) = state.registers[x].overflowing_add(state.registers[y]);
-                state.registers[x] = sum;
-                state.registers[FLAG_REGISTER] = carry as u8;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let (sum, carry) = vx.overflowing_add(vy);
+
+                state.set_register(x, sum);
+                state.set_flag_register(carry);
             }
             Instruction::SubXY(x, y) => {
-                let (diff, borrow) = state.registers[x].overflowing_sub(state.registers[y]);
-                state.registers[x] = diff;
-                state.registers[FLAG_REGISTER] = !borrow as u8;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let (diff, borrow) = vx.overflowing_sub(vy);
+
+                state.set_register(x, diff);
+                state.set_flag_register(!borrow);
             }
             Instruction::ShiftRight(x) => {
-                state.registers[x] >>= 1;
-                state.registers[FLAG_REGISTER] = state.registers[x] & 1;
+                let vx = state.register(x);
+                let flag = (vx & 1) != 0;
+                let val = vx >> 1;
+
+                state.set_flag_register(flag);
+                state.set_register(x, val);
             }
             Instruction::SubYX(x, y) => {
-                let (diff, borrow) = state.registers[y].overflowing_sub(state.registers[x]);
-                state.registers[x] = diff;
-                state.registers[FLAG_REGISTER] = !borrow as u8;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let (diff, borrow) = vy.overflowing_sub(vx);
+
+                state.set_register(x, diff);
+                state.set_flag_register(!borrow);
             }
             Instruction::ShiftLeft(x) => {
-                state.registers[x] <<= 1;
-                state.registers[FLAG_REGISTER] = (state.registers[x] >> 7) & 1;
+                let vx = state.register(x);
+                let flag = ((vx >> 7) & 1) != 0;
+                let val = vx << 1;
+
+                state.set_register(x, val);
+                state.set_flag_register(flag);
             }
             Instruction::SkipNotEqualXY(x, y) => {
-                if state.registers[x] != state.registers[y] {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                if vx != vy {
+                    state.increment_program_counter();
                 }
             }
             Instruction::LoadI(nnn) => {
-                state.index_register = nnn;
+                state.set_index_register(nnn);
             }
             Instruction::JumpV0(nnn) => {
-                state.program_counter = (state.registers[0] as u16) + nnn;
+                let v0 = state.register(0);
+                let offset = (v0 as u16) + nnn;
+                state.set_program_counter(offset);
             }
             Instruction::Random(x, nn) => {
                 let r: u8 = self.rng.gen();
-                state.registers[x] = r & nn;
+                let val = r & nn;
+                state.set_register(x, val);
             }
             Instruction::Draw(x, y, n) => {
-                let x0 = state.registers[x] as usize % DISPLAY_WIDTH;
-                let y0 = state.registers[y] as usize % DISPLAY_HEIGHT;
+                let vx = state.register(x);
+                let vy = state.register(y);
+                let vi = state.index_register();
+
+                let x0 = vx as usize % DISPLAY_WIDTH;
+                let y0 = vy as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
                 for ys in 0..n {
                     let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
-                    let pixels = state.memory[state.index_register as usize + ys as usize];
+                    let pixels = state.memory(vi + ys as u16)?;
                     for xs in 0..8 {
                         let x = (x0 + xs) % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        let fb = ((*state.frame_buffer).checked_read()?)[y][x];
+                        let fb = state.frame_buffer(y, x)?;
                         flipped |= pixel & fb;
                         if pixel {
-                            ((*state.frame_buffer).checked_write()?)[y][x] = !fb;
+                            state.set_frame_buffer(y, x, !fb)?;
                         }
                     }
                 }
-                state.registers[FLAG_REGISTER] = flipped as u8;
+                state.set_flag_register(flipped);
             }
             Instruction::SkipKeyPressed(x) => {
-                let vx = state.registers[x];
-                if state.keypad[vx as usize] {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                if state.key(vx) {
+                    state.increment_program_counter();
                 }
             }
             Instruction::SkipKeyNotPressed(x) => {
-                let vx = state.registers[x];
-                if !state.keypad[vx as usize] {
-                    state.program_counter += OPCODE_SIZE;
+                let vx = state.register(x);
+                if !state.key(vx) {
+                    state.increment_program_counter();
                 }
             }
             Instruction::LoadDelay(x) => {
-                state.registers[x] = state.delay_timer;
+                let val = state.delay_timer();
+                state.set_register(x, val);
             }
             Instruction::WaitKeyPress(x) => {
-                let clk = *state.clk.checked_read()?;
+                let clk = state.clk()?;
                 while status.checked_read()?.is_ok() {
                     if let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
-                        state.keypad[event.key as usize] = event.kind == InputKind::Press;
-                        state.registers[x] = event.key as u8;
+                        state.set_key(event.key, event.kind);
+                        state.set_register(x, event.key as u8);
                         break;
                     }
                 }
             }
             Instruction::SetDelay(x) => {
-                state.delay_timer = state.registers[x];
+                let vx = state.register(x);
+                state.set_delay_timer(vx);
             }
             Instruction::SetSound(x) => {
-                *state.sound_timer.checked_write()? = state.registers[x];
+                let vx = state.register(x);
+                state.set_sound_timer(vx)?;
             }
             Instruction::AddI(x) => {
-                let vx = state.registers[x];
-                state.index_register = state.index_register.wrapping_add(vx as u16);
+                let vx = state.register(x);
+                let vi = state.index_register();
+                let addr = vi.wrapping_add(vx as u16);
+                state.set_index_register(addr);
             }
             Instruction::LoadFont(x) => {
-                let vx = state.registers[x];
-                state.index_register = FONTSET_START_ADDRESS + (FONT_SIZE as u16) * (vx as u16);
+                let vx = state.register(x);
+                let addr = FONTSET_START_ADDRESS + (FONT_SIZE as u16) * (vx as u16);
+                state.set_index_register(addr);
             }
             Instruction::StoreBCD(x) => {
-                let vx = state.registers[x];
-                state.memory[state.index_register as usize] = (vx / 100) % 10;
-                state.memory[state.index_register as usize + 1] = (vx / 10) % 10;
-                state.memory[state.index_register as usize + 2] = vx % 10;
+                let vx = state.register(x);
+                let vi = state.index_register();
+
+                state.set_memory(vi, (vx / 100) % 10)?;
+                state.set_memory(vi + 1, (vx / 10) % 10)?;
+                state.set_memory(vi + 2, vx % 10)?;
             }
             Instruction::StoreRegisters(x) => {
-                for i in 0..=x {
-                    state.memory[state.index_register as usize + i] = state.registers[i];
+                let vi = state.index_register();
+                for j in 0..=x {
+                    let vj = state.register(j);
+                    state.set_memory(vi + j as u16, vj)?;
                 }
             }
             Instruction::LoadMemory(x) => {
-                for i in 0..=x {
-                    state.registers[i] = state.memory[state.index_register as usize + i];
+                let vi = state.index_register();
+                for j in 0..=x {
+                    let val = state.memory(vi + j as u16)?;
+                    state.set_register(j, val);
                 }
             }
         }
@@ -330,11 +372,11 @@ impl<R: Rng> Cpu<R> {
     }
 
     pub fn tick_timers(&mut self, state: &mut Chip8State) -> Result<(), Chip8Error> {
-        if state.delay_timer > 0 {
-            state.delay_timer -= 1;
+        if state.delay_timer() > 0 {
+            state.decrement_delay_timer();
         }
-        if *state.sound_timer.checked_read()? > 0 {
-            *state.sound_timer.checked_write()? -= 1;
+        if state.sound_timer()? > 0 {
+            state.decrement_sound_timer()?;
         }
         Ok(())
     }
@@ -346,10 +388,10 @@ impl<R: Rng> Cpu<R> {
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {
-            let clk = *state.clk.checked_read()?;
+            let clk = state.clk()?;
 
             while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
-                state.keypad[event.key as usize] = event.kind == InputKind::Press;
+                state.set_key(event.key, event.kind);
             }
 
             // TODO: How do I remove this clone?
@@ -358,7 +400,7 @@ impl<R: Rng> Cpu<R> {
                 self.tick_timers(state)?;
             }
 
-            *state.clk.checked_write()? = clk + 1;
+            state.increment_clk()?;
             Ok(())
         })
     }
