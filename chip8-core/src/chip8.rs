@@ -1,4 +1,3 @@
-use rand::Rng;
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
@@ -13,21 +12,24 @@ use crate::{
     state::State,
 };
 
-pub struct Chip8<S: State, R: Rng> {
-    cpu: Cpu<S, R>,
+pub struct Chip8<C>
+where
+    C: Cpu,
+{
+    cpu: C,
     input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
 }
 
-impl<S: State, R: Rng> Chip8<S, R> {
-    pub fn new(cpu_freq: u64, rng: R, inputs: Vec<(u64, InputEvent)>) -> Self {
+impl<C: Cpu> Chip8<C> {
+    pub fn new(cpu: C, inputs: Vec<(u64, InputEvent)>) -> Self {
         Self {
-            cpu: Cpu::new(cpu_freq, rng),
+            cpu,
             input_queue: Arc::new(RwLock::new(VecDeque::from(inputs))),
         }
     }
 
     pub fn load(&mut self, bytes: &[u8]) -> Result<(), Chip8Error> {
-        self.cpu.state.load_rom(bytes)
+        self.cpu.state().load_rom(bytes)
     }
 
     // TODO: Check if rt-multi-thread actually spawns separate threads
@@ -44,7 +46,7 @@ impl<S: State, R: Rng> Chip8<S, R> {
         let input_handle = {
             let status = status.clone();
             let queue = self.input_queue.clone();
-            let clk = self.cpu.state.clk_ptr();
+            let clk = self.cpu.state().clk_ptr();
 
             tokio::spawn(async move { input.run(status, queue, clk) })
         };
@@ -52,8 +54,8 @@ impl<S: State, R: Rng> Chip8<S, R> {
         let display_handle = {
             display.map(|mut display| {
                 let status = status.clone();
-                let frame_buffer = self.cpu.state.frame_buffer_ptr();
-                let clk = self.cpu.state.clk_ptr();
+                let frame_buffer = self.cpu.state().frame_buffer_ptr();
+                let clk = self.cpu.state().clk_ptr();
 
                 tokio::spawn(async move { display.run(status, frame_buffer, clk) })
             })
@@ -62,7 +64,7 @@ impl<S: State, R: Rng> Chip8<S, R> {
         let audio_handle = {
             audio.map(|mut audio| {
                 let status = status.clone();
-                let sound_timer = self.cpu.state.sound_timer_ptr();
+                let sound_timer = self.cpu.state().sound_timer_ptr();
 
                 tokio::spawn(async move { audio.run(status, sound_timer) })
             })

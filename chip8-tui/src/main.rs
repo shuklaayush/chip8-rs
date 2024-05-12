@@ -4,9 +4,9 @@ mod terminal;
 
 use args::CmdArgs;
 use chip8_core::{
+    cpu::SimpleCpu,
     input::{InputEvent, InputKind},
     keypad::Key,
-    state::SimpleState,
     Chip8,
 };
 use clap::Parser;
@@ -79,7 +79,8 @@ async fn main() -> Result<()> {
     };
 
     let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
-    let mut chip8: Chip8<SimpleState, _> = Chip8::new(args.clk_freq, seeded_rng, inputs);
+    let cpu = SimpleCpu::new(args.clk_freq, seeded_rng);
+    let mut chip8 = Chip8::new(cpu, inputs);
     let res = chip8
         .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
         .await;

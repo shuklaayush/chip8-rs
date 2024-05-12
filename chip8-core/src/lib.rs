@@ -1,6 +1,6 @@
 mod chip8;
 pub mod constants;
-mod cpu;
+pub mod cpu;
 pub mod drivers;
 pub mod error;
 pub mod input;
