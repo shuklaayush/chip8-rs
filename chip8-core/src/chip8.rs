@@ -10,18 +10,18 @@ use crate::{
     error::Chip8Error,
     input::InputEvent,
     rwlock::CheckedRead,
-    state::Chip8State,
+    state::State,
 };
 
-pub struct Chip8<R: Rng> {
-    state: Chip8State,
+pub struct Chip8<R: Rng, S: State> {
+    state: S,
     cpu: Cpu<R>,
     input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
 }
 
-impl<R: Rng> Chip8<R> {
+impl<R: Rng, S: State> Chip8<R, S> {
     pub fn new(cpu_freq: u64, rng: R, inputs: Vec<(u64, InputEvent)>) -> Self {
-        let state = Chip8State::default();
+        let state = S::default();
         Self {
             state,
             cpu: Cpu::new(cpu_freq, rng),

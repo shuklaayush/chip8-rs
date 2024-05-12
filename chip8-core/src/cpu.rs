@@ -10,7 +10,7 @@ use crate::{
     input::{InputEvent, InputQueue},
     instructions::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
-    state::Chip8State,
+    state::State,
     util::run_loop,
 };
 
@@ -28,7 +28,7 @@ impl<R: Rng> Cpu<R> {
         self.clk_freq
     }
 
-    fn fetch(&mut self, state: &mut Chip8State) -> Result<u16, Chip8Error> {
+    fn fetch<S: State>(&mut self, state: &mut S) -> Result<u16, Chip8Error> {
         let pc = state.program_counter();
         let hi = state.memory(pc)?;
         let lo = state.memory(pc + 1)?;
@@ -136,11 +136,11 @@ impl<R: Rng> Cpu<R> {
         }
     }
 
-    fn execute(
+    fn execute<S: State>(
         &mut self,
         instruction: Instruction,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut Chip8State,
+        state: &mut S,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         match instruction {
@@ -360,10 +360,10 @@ impl<R: Rng> Cpu<R> {
         Ok(())
     }
 
-    pub fn tick(
+    pub fn tick<S: State>(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut Chip8State,
+        state: &mut S,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         let op = self.fetch(state)?;
@@ -371,7 +371,7 @@ impl<R: Rng> Cpu<R> {
         self.execute(instruction, status, state, input_queue)
     }
 
-    pub fn tick_timers(&mut self, state: &mut Chip8State) -> Result<(), Chip8Error> {
+    pub fn tick_timers<S: State>(&mut self, state: &mut S) -> Result<(), Chip8Error> {
         if state.delay_timer() > 0 {
             state.decrement_delay_timer();
         }
@@ -381,10 +381,10 @@ impl<R: Rng> Cpu<R> {
         Ok(())
     }
 
-    pub fn run(
+    pub fn run<S: State>(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut Chip8State,
+        state: &mut S,
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {
