@@ -17,11 +17,6 @@ pub trait State: Default {
     fn load_rom(&mut self, bytes: &[u8]) -> Result<(), Chip8Error>;
 
     fn clk(&self) -> Result<u64, Chip8Error>;
-
-    fn clk_ptr(&self) -> Arc<RwLock<u64>>;
-    fn sound_timer_ptr(&self) -> Arc<RwLock<Word>>;
-    fn frame_buffer_ptr(&self) -> Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>;
-
     fn program_counter(&self) -> Address;
     fn delay_timer(&self) -> Word;
     fn sound_timer(&self) -> Result<Word, Chip8Error>;
@@ -48,4 +43,8 @@ pub trait State: Default {
     fn increment_clk(&mut self) -> Result<(), Chip8Error>;
     fn decrement_delay_timer(&mut self);
     fn decrement_sound_timer(&mut self) -> Result<(), Chip8Error>;
+
+    fn clk_ptr(&self) -> Arc<RwLock<u64>>;
+    fn sound_timer_ptr(&self) -> Arc<RwLock<Word>>;
+    fn frame_buffer_ptr(&self) -> Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>;
 }

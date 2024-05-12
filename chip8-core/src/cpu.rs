@@ -37,7 +37,7 @@ impl<R: Rng> Cpu<R> {
         Ok(u16::from_be_bytes([hi, lo]))
     }
 
-    fn decode(opcode: u16) -> Result<Instruction, Chip8Error> {
+    fn decode<S: State>(&mut self, _state: &mut S, opcode: u16) -> Result<Instruction, Chip8Error> {
         let x = ((opcode >> 8) & 0x000F) as u8;
         let y = ((opcode >> 4) & 0x000F) as u8;
 
@@ -367,7 +367,7 @@ impl<R: Rng> Cpu<R> {
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         let op = self.fetch(state)?;
-        let instruction = Self::decode(op)?;
+        let instruction = self.decode(state, op)?;
         self.execute(instruction, status, state, input_queue)
     }
 
