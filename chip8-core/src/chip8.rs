@@ -13,24 +13,21 @@ use crate::{
     state::State,
 };
 
-pub struct Chip8<R: Rng, S: State> {
-    state: S,
-    cpu: Cpu<R>,
+pub struct Chip8<S: State, R: Rng> {
+    cpu: Cpu<S, R>,
     input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
 }
 
-impl<R: Rng, S: State> Chip8<R, S> {
+impl<S: State, R: Rng> Chip8<S, R> {
     pub fn new(cpu_freq: u64, rng: R, inputs: Vec<(u64, InputEvent)>) -> Self {
-        let state = S::default();
         Self {
-            state,
             cpu: Cpu::new(cpu_freq, rng),
             input_queue: Arc::new(RwLock::new(VecDeque::from(inputs))),
         }
     }
 
     pub fn load(&mut self, bytes: &[u8]) -> Result<(), Chip8Error> {
-        self.state.load_rom(bytes)
+        self.cpu.state.load_rom(bytes)
     }
 
     // TODO: Check if rt-multi-thread actually spawns separate threads
@@ -47,7 +44,7 @@ impl<R: Rng, S: State> Chip8<R, S> {
         let input_handle = {
             let status = status.clone();
             let queue = self.input_queue.clone();
-            let clk = self.state.clk_ptr();
+            let clk = self.cpu.state.clk_ptr();
 
             tokio::spawn(async move { input.run(status, queue, clk) })
         };
@@ -55,8 +52,8 @@ impl<R: Rng, S: State> Chip8<R, S> {
         let display_handle = {
             display.map(|mut display| {
                 let status = status.clone();
-                let frame_buffer = self.state.frame_buffer_ptr();
-                let clk = self.state.clk_ptr();
+                let frame_buffer = self.cpu.state.frame_buffer_ptr();
+                let clk = self.cpu.state.clk_ptr();
 
                 tokio::spawn(async move { display.run(status, frame_buffer, clk) })
             })
@@ -65,14 +62,13 @@ impl<R: Rng, S: State> Chip8<R, S> {
         let audio_handle = {
             audio.map(|mut audio| {
                 let status = status.clone();
-                let sound_timer = self.state.sound_timer_ptr();
+                let sound_timer = self.cpu.state.sound_timer_ptr();
 
                 tokio::spawn(async move { audio.run(status, sound_timer) })
             })
         };
         // CPU loop
-        self.cpu
-            .run(status.clone(), &mut self.state, self.input_queue.clone());
+        self.cpu.run(status.clone(), self.input_queue.clone());
 
         // Wait for all threads
         input_handle

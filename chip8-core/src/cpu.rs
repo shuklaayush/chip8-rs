@@ -14,30 +14,35 @@ use crate::{
     util::run_loop,
 };
 
-pub struct Cpu<R: Rng> {
+pub struct Cpu<S: State, R: Rng> {
+    pub state: S,
     clk_freq: u64,
     rng: R,
 }
 
-impl<R: Rng> Cpu<R> {
+impl<S: State, R: Rng> Cpu<S, R> {
     pub fn new(clk_freq: u64, rng: R) -> Self {
-        Self { clk_freq, rng }
+        Self {
+            state: S::default(),
+            clk_freq,
+            rng,
+        }
     }
 
     pub fn frequency(&self) -> u64 {
         self.clk_freq
     }
 
-    fn fetch<S: State>(&mut self, state: &mut S) -> Result<u16, Chip8Error> {
-        let pc = state.program_counter();
-        let hi = state.memory(pc)?;
-        let lo = state.memory(pc + 1)?;
+    fn fetch(&mut self) -> Result<u16, Chip8Error> {
+        let pc = self.state.program_counter();
+        let hi = self.state.memory(pc)?;
+        let lo = self.state.memory(pc + 1)?;
 
-        state.increment_program_counter();
+        self.state.increment_program_counter();
         Ok(u16::from_be_bytes([hi, lo]))
     }
 
-    fn decode<S: State>(&mut self, _state: &mut S, opcode: u16) -> Result<Instruction, Chip8Error> {
+    fn decode(&mut self, opcode: u16) -> Result<Instruction, Chip8Error> {
         let x = ((opcode >> 8) & 0x000F) as u8;
         let y = ((opcode >> 4) & 0x000F) as u8;
 
@@ -136,223 +141,223 @@ impl<R: Rng> Cpu<R> {
         }
     }
 
-    fn execute<S: State>(
+    fn execute(
         &mut self,
         instruction: Instruction,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut S,
+
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
         match instruction {
             Instruction::ClearDisplay => {
-                state.clear_framebuffer()?;
+                self.state.clear_framebuffer()?;
             }
             Instruction::Return => {
-                state.pop_stack();
+                self.state.pop_stack();
             }
             Instruction::Jump(nnn) => {
-                state.set_program_counter(nnn);
+                self.state.set_program_counter(nnn);
             }
             Instruction::Call(nnn) => {
-                state.push_stack(nnn);
+                self.state.push_stack(nnn);
             }
             Instruction::SkipEqual(x, nn) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 if vx == nn {
-                    state.increment_program_counter();
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::SkipNotEqual(x, nn) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 if vx != nn {
-                    state.increment_program_counter();
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::SkipEqualXY(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 if vx == vy {
-                    state.increment_program_counter();
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::Load(x, nn) => {
-                state.set_register(x, nn);
+                self.state.set_register(x, nn);
             }
             Instruction::Add(x, nn) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 let val = vx.wrapping_add(nn);
-                state.set_register(x, val);
+                self.state.set_register(x, val);
             }
             Instruction::Move(x, y) => {
-                let vy = state.register(y);
-                state.set_register(x, vy);
+                let vy = self.state.register(y);
+                self.state.set_register(x, vy);
             }
             Instruction::Or(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let val = vx | vy;
-                state.set_register(x, val);
+                self.state.set_register(x, val);
             }
             Instruction::And(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let val = vx & vy;
-                state.set_register(x, val);
+                self.state.set_register(x, val);
             }
             Instruction::Xor(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let val = vx ^ vy;
-                state.set_register(x, val);
+                self.state.set_register(x, val);
             }
             Instruction::AddXY(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let (sum, carry) = vx.overflowing_add(vy);
 
-                state.set_register(x, sum);
-                state.set_flag_register(carry);
+                self.state.set_register(x, sum);
+                self.state.set_flag_register(carry);
             }
             Instruction::SubXY(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let (diff, borrow) = vx.overflowing_sub(vy);
 
-                state.set_register(x, diff);
-                state.set_flag_register(!borrow);
+                self.state.set_register(x, diff);
+                self.state.set_flag_register(!borrow);
             }
             Instruction::ShiftRight(x) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 let flag = (vx & 1) != 0;
                 let val = vx >> 1;
 
-                state.set_flag_register(flag);
-                state.set_register(x, val);
+                self.state.set_flag_register(flag);
+                self.state.set_register(x, val);
             }
             Instruction::SubYX(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 let (diff, borrow) = vy.overflowing_sub(vx);
 
-                state.set_register(x, diff);
-                state.set_flag_register(!borrow);
+                self.state.set_register(x, diff);
+                self.state.set_flag_register(!borrow);
             }
             Instruction::ShiftLeft(x) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 let flag = ((vx >> 7) & 1) != 0;
                 let val = vx << 1;
 
-                state.set_register(x, val);
-                state.set_flag_register(flag);
+                self.state.set_register(x, val);
+                self.state.set_flag_register(flag);
             }
             Instruction::SkipNotEqualXY(x, y) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
                 if vx != vy {
-                    state.increment_program_counter();
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::LoadI(nnn) => {
-                state.set_index_register(nnn);
+                self.state.set_index_register(nnn);
             }
             Instruction::JumpV0(nnn) => {
-                let v0 = state.register(0);
+                let v0 = self.state.register(0);
                 let offset = (v0 as u16) + nnn;
-                state.set_program_counter(offset);
+                self.state.set_program_counter(offset);
             }
             Instruction::Random(x, nn) => {
                 let r: u8 = self.rng.gen();
                 let val = r & nn;
-                state.set_register(x, val);
+                self.state.set_register(x, val);
             }
             Instruction::Draw(x, y, n) => {
-                let vx = state.register(x);
-                let vy = state.register(y);
-                let vi = state.index_register();
+                let vx = self.state.register(x);
+                let vy = self.state.register(y);
+                let vi = self.state.index_register();
 
                 let x0 = vx as usize % DISPLAY_WIDTH;
                 let y0 = vy as usize % DISPLAY_HEIGHT;
                 let mut flipped = false;
                 for ys in 0..n {
                     let y = (y0 + ys as usize) % DISPLAY_HEIGHT;
-                    let pixels = state.memory(vi + ys as u16)?;
+                    let pixels = self.state.memory(vi + ys as u16)?;
                     for xs in 0..8 {
                         let x = (x0 + xs) % DISPLAY_WIDTH;
                         let pixel = (pixels >> (7 - xs)) & 1 == 1;
-                        let fb = state.frame_buffer(y, x)?;
+                        let fb = self.state.frame_buffer(y, x)?;
                         flipped |= pixel & fb;
                         if pixel {
-                            state.set_frame_buffer(y, x, !fb)?;
+                            self.state.set_frame_buffer(y, x, !fb)?;
                         }
                     }
                 }
-                state.set_flag_register(flipped);
+                self.state.set_flag_register(flipped);
             }
             Instruction::SkipKeyPressed(x) => {
-                let vx = state.register(x);
-                if state.key(vx) {
-                    state.increment_program_counter();
+                let vx = self.state.register(x);
+                if self.state.key(vx) {
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::SkipKeyNotPressed(x) => {
-                let vx = state.register(x);
-                if !state.key(vx) {
-                    state.increment_program_counter();
+                let vx = self.state.register(x);
+                if !self.state.key(vx) {
+                    self.state.increment_program_counter();
                 }
             }
             Instruction::LoadDelay(x) => {
-                let val = state.delay_timer();
-                state.set_register(x, val);
+                let val = self.state.delay_timer();
+                self.state.set_register(x, val);
             }
             Instruction::WaitKeyPress(x) => {
-                let clk = state.clk()?;
+                let clk = self.state.clk()?;
                 while status.checked_read()?.is_ok() {
                     if let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
-                        state.set_key(event.key, event.kind);
-                        state.set_register(x, event.key as u8);
+                        self.state.set_key(event.key, event.kind);
+                        self.state.set_register(x, event.key as u8);
                         break;
                     }
                 }
             }
             Instruction::SetDelay(x) => {
-                let vx = state.register(x);
-                state.set_delay_timer(vx);
+                let vx = self.state.register(x);
+                self.state.set_delay_timer(vx);
             }
             Instruction::SetSound(x) => {
-                let vx = state.register(x);
-                state.set_sound_timer(vx)?;
+                let vx = self.state.register(x);
+                self.state.set_sound_timer(vx)?;
             }
             Instruction::AddI(x) => {
-                let vx = state.register(x);
-                let vi = state.index_register();
+                let vx = self.state.register(x);
+                let vi = self.state.index_register();
                 let addr = vi.wrapping_add(vx as u16);
-                state.set_index_register(addr);
+                self.state.set_index_register(addr);
             }
             Instruction::LoadFont(x) => {
-                let vx = state.register(x);
+                let vx = self.state.register(x);
                 let addr = FONTSET_START_ADDRESS + (FONT_SIZE as u16) * (vx as u16);
-                state.set_index_register(addr);
+                self.state.set_index_register(addr);
             }
             Instruction::StoreBCD(x) => {
-                let vx = state.register(x);
-                let vi = state.index_register();
+                let vx = self.state.register(x);
+                let vi = self.state.index_register();
 
-                state.set_memory(vi, (vx / 100) % 10)?;
-                state.set_memory(vi + 1, (vx / 10) % 10)?;
-                state.set_memory(vi + 2, vx % 10)?;
+                self.state.set_memory(vi, (vx / 100) % 10)?;
+                self.state.set_memory(vi + 1, (vx / 10) % 10)?;
+                self.state.set_memory(vi + 2, vx % 10)?;
             }
             Instruction::StoreRegisters(x) => {
-                let vi = state.index_register();
+                let vi = self.state.index_register();
                 for j in 0..=x {
-                    let vj = state.register(j);
-                    state.set_memory(vi + j as u16, vj)?;
+                    let vj = self.state.register(j);
+                    self.state.set_memory(vi + j as u16, vj)?;
                 }
             }
             Instruction::LoadMemory(x) => {
-                let vi = state.index_register();
+                let vi = self.state.index_register();
                 for j in 0..=x {
-                    let val = state.memory(vi + j as u16)?;
-                    state.set_register(j, val);
+                    let val = self.state.memory(vi + j as u16)?;
+                    self.state.set_register(j, val);
                 }
             }
         }
@@ -360,47 +365,47 @@ impl<R: Rng> Cpu<R> {
         Ok(())
     }
 
-    pub fn tick<S: State>(
+    pub fn tick(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut S,
+
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) -> Result<(), Chip8Error> {
-        let op = self.fetch(state)?;
-        let instruction = self.decode(state, op)?;
-        self.execute(instruction, status, state, input_queue)
+        let op = self.fetch()?;
+        let instruction = self.decode(op)?;
+        self.execute(instruction, status, input_queue)
     }
 
-    pub fn tick_timers<S: State>(&mut self, state: &mut S) -> Result<(), Chip8Error> {
-        if state.delay_timer() > 0 {
-            state.decrement_delay_timer();
+    pub fn tick_timers(&mut self) -> Result<(), Chip8Error> {
+        if self.state.delay_timer() > 0 {
+            self.state.decrement_delay_timer();
         }
-        if state.sound_timer()? > 0 {
-            state.decrement_sound_timer()?;
+        if self.state.sound_timer()? > 0 {
+            self.state.decrement_sound_timer()?;
         }
         Ok(())
     }
 
-    pub fn run<S: State>(
+    pub fn run(
         &mut self,
         status: Arc<RwLock<Result<(), Chip8Error>>>,
-        state: &mut S,
+
         input_queue: Arc<RwLock<VecDeque<(u64, InputEvent)>>>,
     ) {
         run_loop(status.clone(), self.frequency(), move |_| {
-            let clk = state.clk()?;
+            let clk = self.state.clk()?;
 
             while let Some(event) = (*input_queue.checked_write()?).dequeue(clk) {
-                state.set_key(event.key, event.kind);
+                self.state.set_key(event.key, event.kind);
             }
 
             // TODO: How do I remove this clone?
-            self.tick(status.clone(), state, input_queue.clone())?;
+            self.tick(status.clone(), input_queue.clone())?;
             if clk % TICKS_PER_TIMER == 0 {
-                self.tick_timers(state)?;
+                self.tick_timers()?;
             }
 
-            state.increment_clk()?;
+            self.state.increment_clk()?;
             Ok(())
         })
     }

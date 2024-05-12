@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
     };
 
     let seeded_rng = StdRng::seed_from_u64(args.random_seed.unwrap_or(random()));
-    let mut chip8: Chip8<_, SimpleState> = Chip8::new(args.clk_freq, seeded_rng, inputs);
+    let mut chip8: Chip8<SimpleState, _> = Chip8::new(args.clk_freq, seeded_rng, inputs);
     let res = chip8
         .load_and_run(rom.as_slice(), input_driver, display_driver, audio_driver)
         .await;
