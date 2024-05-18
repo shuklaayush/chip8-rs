@@ -15,17 +15,18 @@ use crate::{
 // TODO: Compare performance with atomics, channels instead of locks
 pub struct SimpleState {
     /// Cycle counter to keep track of the number of CPU cycles executed.
-    clk: Arc<RwLock<u64>>,
-    registers: [Word; NUM_REGISTERS],
-    memory: [Word; MEMORY_SIZE],
-    index_register: Address,
-    program_counter: Address,
-    stack: [Address; STACK_DEPTH],
-    stack_pointer: Word,
-    delay_timer: Word,
-    sound_timer: Arc<RwLock<Word>>,
-    keypad: [bool; NUM_KEYS],
-    frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
+    // TODO: Make private
+    pub clk: Arc<RwLock<u64>>,
+    pub registers: [Word; NUM_REGISTERS],
+    pub memory: [Word; MEMORY_SIZE],
+    pub index_register: Address,
+    pub program_counter: Address,
+    pub stack: [Address; STACK_DEPTH],
+    pub stack_pointer: Word,
+    pub delay_timer: Word,
+    pub sound_timer: Arc<RwLock<Word>>,
+    pub keypad: [bool; NUM_KEYS],
+    pub frame_buffer: Arc<RwLock<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>>,
 }
 
 impl Default for SimpleState {

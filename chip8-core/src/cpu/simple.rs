@@ -4,9 +4,10 @@ use super::Cpu;
 use crate::state::{SimpleState, Word};
 
 pub struct SimpleCpu<R: Rng> {
-    state: SimpleState,
-    clk_freq: u64,
-    rng: R,
+    // TODO: Make private
+    pub state: SimpleState,
+    pub clk_freq: u64,
+    pub rng: R,
 }
 
 impl<R: Rng> SimpleCpu<R> {
