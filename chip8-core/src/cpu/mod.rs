@@ -10,7 +10,7 @@ use crate::{
     constants::{DISPLAY_HEIGHT, DISPLAY_WIDTH, FONTSET_START_ADDRESS, FONT_SIZE, TICKS_PER_TIMER},
     error::Chip8Error,
     input::{InputEvent, InputQueue},
-    instructions::Instruction,
+    instruction::Instruction,
     rwlock::{CheckedRead, CheckedWrite},
     state::{Address, State, Word},
     util::run_loop,
