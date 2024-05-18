@@ -6,8 +6,8 @@ pub mod error;
 pub mod input;
 pub mod instruction;
 pub mod keypad;
-mod rwlock;
+pub mod rwlock;
 pub mod state;
-mod util;
+pub mod util;
 
 pub use chip8::*;

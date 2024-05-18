@@ -41,7 +41,7 @@ fn run_loop_inner(
     Ok(())
 }
 
-pub(crate) fn run_loop(
+pub fn run_loop(
     status: Arc<RwLock<Result<(), Chip8Error>>>,
     frequency: u64,
     fn_tick: impl FnMut(Duration) -> Result<(), Chip8Error>,
